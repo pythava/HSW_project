@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnderGarden | Access</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="./css/global.css">
+    <link rel="stylesheet" href="./css/login-style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <a href="./index.html" class="logo">UnderGarden</a>
+                <p id="auth-title">Resident Login</p>
+            </div>
+
+            <form id="auth-form">
+                <div class="input-group">
+                    <span class="material-symbols-rounded">mail</span>
+                    <input type="email" id="email" placeholder="Email" required>
+                </div>
+                <div class="input-group">
+                    <span class="material-symbols-rounded">lock</span>
+                    <input type="password" id="password" placeholder="Password" required>
+                </div>
+                <div id="signup-extra" style="display: none;">
+                    <div class="input-group">
+                        <span class="material-symbols-rounded">person</span>
+                        <input type="text" id="username" placeholder="Username">
+                    </div>
+                </div>
+
+                <button type="submit" id="auth-submit-btn" class="btn-primary">접속하기</button>
+            </form>
+
+            <div class="auth-toggle">
+                <span id="toggle-text">아직 거주민이 아니신가요?</span>
+                <button id="toggle-auth-mode">회원가입</button>
+            </div>
+            
+            <div id="auth-error" class="error-msg" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script src="./js/supabase-config.js"></script>
+    <script src="./js/login-logic.js"></script>
+</body>
+</html>
