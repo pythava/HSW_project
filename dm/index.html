@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Garden - DM</title>
+    <link rel="stylesheet" href="./style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container">
+        <nav class="sidebar">
+            <div class="logo">
+                <img src="../img_hub/img.png" alt="Logo">
+                <h1>Under<br>Garden</h1>
+            </div>
+            <ul class="menu-list">
+                <li><a href="../index.html">홈</a></li>
+                <li><a href="../dm/index.html" class="active">DM</a></li>
+                <li><a href="../fam/index.html">팸</a></li>
+                <li><a href="../profile/index.html">프로필</a></li>
+                <li><a href="../alarm/index.html">알림</a></li>
+            </ul>
+        </nav>
+
+        <aside class="dm-list">
+            <div class="dm-list-header">
+                <h2>Messages</h2>
+            </div>
+            <div class="user-item active">
+                <div class="user-avatar"></div>
+                <div class="user-info">
+                    <h4>Black Rose</h4>
+                    <p>최근 메시지 내용이 표시됩니다...</p>
+                </div>
+            </div>
+            <div class="user-item">
+                <div class="user-avatar"></div>
+                <div class="user-info">
+                    <h4>Neon Thorn</h4>
+                    <p>팸 가입 승인 부탁드려요!</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="chat-room">
+            <div class="messages-display">
+                <div class="msg received">안녕하세요! 지하 정원에 오신 걸 환영합니다.</div>
+                <div class="msg sent">감사합니다. 팸 가입하고 싶어서 메시지 드렸어요.</div>
+                <div class="msg received">어떤 팸을 찾고 계신가요?</div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <input type="text" placeholder="메시지를 입력하세요...">
+                    <button class="send-btn">전송</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+</body>
+</html>
