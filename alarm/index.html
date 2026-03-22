@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Garden - Alarm</title>
+    <link rel="stylesheet" href="./style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container">
+        <nav class="sidebar">
+            <div class="logo">
+                <img src="../img_hub/img.png" alt="Logo">
+                <h1>Under<br>Garden</h1>
+            </div>
+            <ul class="menu-list">
+                <li><a href="../index.html">홈</a></li>
+                <li><a href="../dm/index.html">DM</a></li>
+                <li><a href="../fam/index.html">팸</a></li>
+                <li><a href="../profile/index.html">프로필</a></li>
+                <li><a href="../alarm/index.html" class="active">알림</a></li>
+            </ul>
+        </nav>
+
+        <main class="main-content">
+            <header class="content-header">
+                <h2>Notifications</h2>
+                <button class="clear-all">모두 읽음 처리</button>
+            </header>
+
+            <div class="alarm-list">
+                <div class="alarm-item unread">
+                    <div class="alarm-icon">✉️</div>
+                    <div class="alarm-info">
+                        <p class="alarm-text"><strong>Black Rose</strong>님이 새로운 DM을 보냈습니다.</p>
+                        <span class="alarm-time">방금 전</span>
+                    </div>
+                    <div class="unread-dot"></div>
+                </div>
+
+                <div class="alarm-item unread">
+                    <div class="alarm-icon">🛡️</div>
+                    <div class="alarm-info">
+                        <p class="alarm-text"><strong>Neon Thorn</strong>님이 '지하연합' 팸 가입을 신청했습니다.</p>
+                        <span class="alarm-time">10분 전</span>
+                    </div>
+                    <div class="unread-dot"></div>
+                </div>
+
+                <div class="alarm-item">
+                    <div class="alarm-icon">❤️</div>
+                    <div class="alarm-info">
+                        <p class="alarm-text"><strong>Cyber Ghost</strong>님이 당신의 게시물을 좋아합니다.</p>
+                        <span class="alarm-time">2시간 전</span>
+                    </div>
+                </div>
+
+                <div class="alarm-item">
+                    <div class="alarm-icon">👤</div>
+                    <div class="alarm-info">
+                        <p class="alarm-text">새로운 팔로워가 생겼습니다: <strong>Unknown_User</strong></p>
+                        <span class="alarm-time">어제</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+</body>
+</html>
