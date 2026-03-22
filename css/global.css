@@ -1,0 +1,57 @@
+/* css/global.css */
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;700;800&display=swap');
+
+:root {
+    /* Color Palette (보내주신 다크 모드 기준) */
+    --bg-0: #050505;
+    --bg-1: #121212;
+    --bg-2: #1e1e1e;
+    --primary: #9d4edd;
+    --primary-hover: #c77dff;
+    --primary-alpha: rgba(157, 78, 221, 0.15); /* 액티브 상태 배경용 */
+    --text-0: #ffffff;
+    --text-1: #e0e0e0;
+    --text-2: #a0a0a0;
+    --text-3: #666666;
+    --border: #2a2a2a;
+    --error: #ff4444;
+    
+    /* Layout Tokens */
+    --side-nav-width: 260px; /* 아이콘+텍스트형 사이드바 */
+    --panel-right-width: 340px;
+    --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+    -webkit-font-smoothing: antialiased; 
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body { 
+    background-color: var(--bg-0); 
+    color: var(--text-0); 
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    line-height: 1.5;
+    overflow: hidden; /* 바디 자체 스크롤 방지 (레이아웃 고정) */
+    height: 100vh;
+    width: 100vw;
+}
+
+a { text-decoration: none; color: inherit; transition: var(--transition-fast); }
+button { background: none; border: none; cursor: pointer; color: inherit; font-family: inherit; transition: var(--transition-fast); outline: none; }
+ul { list-style: none; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* Material Symbols Rounded 초기 설정 */
+.material-symbols-rounded {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+}
