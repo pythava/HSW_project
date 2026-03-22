@@ -1,8 +1,8 @@
-/* 전역 설정 */
+/* --- 1. 기본 초기화 및 변수 (모든 페이지 통일) --- */
 :root {
-    --bg-black: #0a0a0a;          /* 깊은 검정색 */
-    --sidebar-bg: #121212;       /* 약간 밝은 검정 */
-    --neon-pink: #ff007f;        /* 메인 네온 핑크 */
+    --bg-black: #0a0a0a;
+    --sidebar-bg: #121212;
+    --neon-pink: #ff007f;
     --neon-pink-glow: rgba(255, 0, 127, 0.4);
     --text-gray: #b3b3b3;
     --sidebar-width: 240px;
@@ -19,46 +19,45 @@ body {
     background-color: var(--bg-black);
     color: #fff;
     line-height: 1.6;
+    overflow-x: hidden;
 }
 
 .container {
     display: flex;
 }
 
-/* 사이드바 스타일 */
+/* --- 2. 사이드바 (다른 페이지와 완벽 동일 버전) --- */
 .sidebar {
     width: var(--sidebar-width);
-    height: 100vh;
+    height: 150vh; /* 다른 페이지 규격에 맞춤 */
     position: fixed;
     background-color: var(--sidebar-bg);
     border-right: 1px solid #222;
     padding: 30px 20px;
     display: flex;
     flex-direction: column;
+    z-index: 100;
 }
 
 .logo {
-    display: flex;         /* 이미지와 텍스트를 가로로 정렬 */
-    align-items: center;  /* 세로 중앙 정렬 */
-    gap: 15px;            /* 이미지와 텍스트 사이 간격 */
-    margin-bottom: 50px;  /* 아래 메뉴와의 간격 */
-    padding-left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 50px;
 }
 
 .logo img {
-    width: 50px;          /* 심볼 마크의 너비 조절 (원하는 크기로) */
-    height: auto;         /* 비율 유지 */
-    /* 네온 핑크 광채 효과 (선택 사항) */
+    width: 45px;      /* 45px로 고정 */
+    height: auto;
     filter: drop-shadow(0 0 5px var(--neon-pink-glow));
 }
 
 .logo h1 {
-    font-size: 1.5rem;    /* 텍스트 크기를 살짝 줄임 (이미지와 맞추기 위해) */
-    font-weight: 700;
+    font-size: 1.3rem; /* 1.3rem으로 고정 */
     color: var(--neon-pink);
     text-shadow: 0 0 10px var(--neon-pink-glow);
-    letter-spacing: -1px;
-    line-height: 1.2;
+    line-height: 1.1;
+    font-weight: 700;
 }
 
 .menu-list {
@@ -72,14 +71,13 @@ body {
 .menu-list a {
     text-decoration: none;
     color: var(--text-gray);
-    font-size: 1.1rem;
+    font-size: 1.05rem; /* 1.05rem으로 고정 */
     display: block;
     padding: 12px 15px;
     border-radius: 12px;
-    transition: all 0.3s ease;
+    transition: 0.3s;
 }
 
-/* 메뉴 호버 및 활성화 효과 */
 .menu-list a:hover, .menu-list a.active {
     color: #fff;
     background-color: rgba(255, 0, 127, 0.1);
@@ -87,7 +85,7 @@ body {
     border: 1px solid var(--neon-pink);
 }
 
-/* 메인 콘텐츠 영역 */
+/* --- 3. 메인 콘텐츠 영역 (index.html 전용 피드 스타일) --- */
 .main-content {
     margin-left: var(--sidebar-width);
     flex: 1;
@@ -103,7 +101,7 @@ body {
     padding-bottom: 5px;
 }
 
-/* 피드 카드 샘플 */
+/* 피드 카드 스타일 */
 .post-card {
     background-color: #1a1a1a;
     width: 100%;
@@ -112,6 +110,7 @@ body {
     overflow: hidden;
     border: 1px solid #333;
     transition: transform 0.3s;
+    margin-bottom: 25px;
 }
 
 .post-card:hover {
@@ -122,7 +121,7 @@ body {
 .post-img {
     width: 100%;
     height: 300px;
-    background: linear-gradient(45deg, #000, #222); /* 나중에 이미지 들어갈 자리 */
+    background: linear-gradient(45deg, #000, #222);
 }
 
 .post-info {
