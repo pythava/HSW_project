@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnderGarden | Verification Complete</title>
+    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0" />
+    
+    <link rel="stylesheet" href="./css/global.css">
+    
+    <style>
+        /* 이 페이지 전용 스타일 */
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1a0b2e 0%, #050505 100%); /* 앰비언트 다크 배경 */
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .success-card {
+            background: var(--bg-1);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 50px;
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            opacity: 0; /* 처음엔 숨김 (JS로 페이드인) */
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        
+        /* 1. 애니메이션 체크 아이콘 컨테이너 */
+        .check-container {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(157, 78, 221, 0.1); /* primary 알파 */
+            border: 4px solid var(--border);
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.4s ease 0.8s; /* 나중에 보더 색상 변경 */
+        }
+
+        /* 2. 실제 체크 아이콘 스타일 및 애니메이션 */
+        .check-icon {
+            font-size: 70px;
+            color: var(--primary);
+            opacity: 0;
+            transform: scale(0) rotate(-45deg); /* 회전하며 등장 */
+            transition: opacity 0.4s ease 1.0s, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 1.0s; /* 바운스 효과 */
+        }
+
+        /* 3. 로딩 대기용 원형 게이지 (체크 전 삭 돌게) */
+        .loading-ring {
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 4px solid transparent;
+            border-top-color: var(--primary);
+            animation: spin 0.8s linear forwards; /* 한 바퀴만 돌고 사라짐 */
+            opacity: 1;
+            transition: opacity 0.3s ease 0.7s;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 텍스트 스타일 (애니메이션 대기) */
+        .success-card h1 {
+            color: var(--text-0);
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+            opacity: 0; transform: translateY(10px);
+            transition: opacity 0.4s ease 1.3s, transform 0.4s ease 1.3s;
+        }
+
+        .success-card p {
+            color: var(--text-2);
+            font-size: 0.95rem;
+            margin-bottom: 35px;
+            line-height: 1.6;
+            opacity: 0; transform: translateY(10px);
+            transition: opacity 0.4s ease 1.5s, transform 0.4s ease 1.5s;
+        }
+        
+        /* 버튼 스타일 (앰비언트 글로우 효과 추가) */
+        .btn-enter {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 30px;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: var(--transition-fast);
+            box-shadow: 0 4px 15px var(--primary-alpha);
+            opacity: 0; transform: translateY(10px);
+            transition: opacity 0.4s ease 1.8s, transform 0.4s ease 1.8s, background 0.2s ease, transform 0.2s ease;
+        }
+        .btn-enter:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--primary); /* 호버 시 글로우 강화 */
+        }
+
+        /* 애니메이션 활성화 클래스 (JS에서 추가) */
+        body.loaded .success-card { opacity: 1; transform: translateY(0); }
+        body.loaded .check-container { border-color: var(--primary); }
+        body.loaded .loading-ring { opacity: 0; }
+        body.loaded .check-icon { opacity: 1; transform: scale(1) rotate(0deg); }
+        body.loaded h1, body.loaded p, body.loaded .btn-enter { opacity: 1; transform: translateY(0); }
+
+    </style>
+</head>
+<body>
+    <div class="success-card">
+        <div class="check-container">
+            <div class="loading-ring"></div>
+            <span class="material-symbols-rounded check-icon">check_circle</span>
+        </div>
+        
+        <h1>Resident Verified</h1>
+        <p>거주민 인증이 완료되었습니다.<br>이제 가든에 접속하실 수 있습니다.</p>
+        
+        <a href="./index.html" class="btn-enter">
+            가든으로 입장하기
+            <span class="material-symbols-rounded" style="font-size:20px;">arrow_forward</span>
+        </a>
+    </div>
+
+    <script>
+        // 페이지 로드 후 애니메이션 트리거
+        window.addEventListener('load', () => {
+            // 약간의 지연 후 애니메이션 시작 (로딩 느낌 강조)
+            setTimeout(() => {
+                document.body.classList.add('loaded');
+            }, 300);
+        });
+
+        // 8초 후 자동으로 메인 페이지로 이동 (UX 보완)
+        setTimeout(() => {
+            // 버튼 클릭 안 했을 때만 이동
+            window.location.href = './index.html';
+        }, 8500);
+    </script>
+</body>
+</html>
