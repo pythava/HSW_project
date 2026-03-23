@@ -23,10 +23,7 @@ async function checkUserStatus() {
             </div>
         `;
     } else {
-        // 현재 경로 기준으로 login.html 위치 동적 계산
-        const depth = window.location.pathname.split('/').length - 2;
-        const prefix = depth > 0 ? '../'.repeat(depth) : './';
-        const loginUrl = prefix + 'login.html';
+        const loginUrl = '/login.html';
 
         authSection.innerHTML = `
             <div class="auth-prompt">
@@ -42,7 +39,5 @@ document.getElementById('logout-btn')?.addEventListener('click', async () => {
     await supabase.auth.signOut();
     location.reload();
 });
-
-checkUserStatus();
 
 checkUserStatus();
