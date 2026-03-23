@@ -4,7 +4,6 @@ async function checkUserStatus() {
     const { data: { session }, error } = await supabase.auth.getSession();
 
     if (session) {
-        // 로그인 된 경우: 사용자 프로필 출력
         const user = session.user;
         const { data: profile } = await supabase
             .from('profiles')
@@ -24,21 +23,26 @@ async function checkUserStatus() {
             </div>
         `;
     } else {
-        // 로그인 안 된 경우: 로그인 유도 버튼 (절대 경로 '/' 제거하고 './' 추가)
+        // 현재 경로 기준으로 login.html 위치 동적 계산
+        const depth = window.location.pathname.split('/').length - 2;
+        const prefix = depth > 0 ? '../'.repeat(depth) : './';
+        const loginUrl = prefix + 'login.html';
+
         authSection.innerHTML = `
             <div class="auth-prompt">
                 <h3 style="margin-bottom:10px;">가든에 입장하세요</h3>
                 <p style="font-size:0.85rem; color:var(--text-2); margin-bottom:20px;">더 많은 기능을 이용하려면 로그인이 필요합니다.</p>
-                <a href="./login.html" class="write-link" style="display:flex; justify-content:center; align-items:center; padding:12px; border-radius:12px; background:var(--primary); color:white; font-weight:700;">로그인 / 시작하기</a>
+                <a href="${loginUrl}" class="write-link" style="display:flex; justify-content:center; align-items:center; padding:12px; border-radius:12px; background:var(--primary); color:white; font-weight:700;">로그인 / 시작하기</a>
             </div>
         `;
     }
 }
 
-// 로그아웃 로직 연결
 document.getElementById('logout-btn')?.addEventListener('click', async () => {
     await supabase.auth.signOut();
-    location.reload(); // 상태 반영을 위해 새로고침
+    location.reload();
 });
+
+checkUserStatus();
 
 checkUserStatus();
