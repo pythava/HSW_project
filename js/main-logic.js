@@ -45,7 +45,7 @@ async function fetchPosts() {
     try {
         const { data: posts, error } = await supabase
             .from('posts')
-            .select('*')
+            .select('*, profiles(username, avatar_url)')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -82,15 +82,14 @@ async function fetchPosts() {
         });
 
         for (const post of posts) {
-            // 댓글 최근 5개 미리 로드
+            // 댓글 미리 로드 (제한 없음)
             const { data: comments } = await supabase
                 .from('comments')
-                .select('*')
+                .select('*, profiles(username, avatar_url)')
                 .eq('post_id', post.id)
-                .order('created_at', { ascending: false })
-                .limit(5);
+                .order('created_at', { ascending: true });
 
-            const recentComments = (comments || []).reverse();
+            const recentComments = comments || [];
             // likes 테이블 기준 실제 count 주입
             post.likes_count = likesCountMap[post.id] || 0;
             feedContainer.appendChild(
@@ -118,8 +117,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     article.className = 'post-card';
     article.dataset.postId = post.id;
 
-    const avatar    = `https://api.dicebear.com/7.x/identicon/svg?seed=${post.user_id}`;
-    const username  = post.user_id?.slice(0, 8) || 'anonymous';
+    const avatar    = post.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${post.user_id}`;
+    const username  = post.profiles?.username || post.user_id?.slice(0, 8) || 'anonymous';
     const timeAgo   = formatTime(new Date(post.created_at));
     const tagsHtml  = (post.tags || []).map(t => `<span class="post-tag">#${t}</span>`).join('');
     const likeCount = post.likes_count || 0;
@@ -128,18 +127,22 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     // 본문: marked 렌더 후 plain text로 줄여서 미리보기 (3줄)
     const renderedFull = window.marked ? marked.parse(post.content || '') : (post.content || '');
 
-    // 댓글 HTML
+    // 댓글 HTML (profiles join 활용)
     const commentsHtml = recentComments.length === 0
         ? '<p class="no-comments">아직 댓글이 없어요.</p>'
-        : recentComments.map(c => `
+        : recentComments.map(c => {
+            const cUsername = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
+            const cAvatar = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+            return `
             <div class="comment-item">
-                <img class="comment-avatar-sm" src="https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}" alt="">
+                <img class="comment-avatar-sm" src="${cAvatar}" alt="">
                 <div class="comment-bubble">
-                    <span class="comment-user">@${c.user_id?.slice(0,8)}</span>
+                    <span class="comment-user">@${cUsername}</span>
                     <p class="comment-text">${escapeHtml(c.content)}</p>
                     <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
 
     article.innerHTML = `
         <div class="post-card-inner">
@@ -190,8 +193,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                 </button>
             </div>
 
-            <!-- 댓글 영역 (기본 표시) -->
-            <div class="comment-section" id="comments-${post.id}">
+            <!-- 댓글 영역 (기본 숨김, 스무스 슬라이드) -->
+            <div class="comment-section comment-section-hidden" id="comments-${post.id}">
                 <div class="comment-list" id="comment-list-${post.id}">
                     ${commentsHtml}
                 </div>
@@ -238,15 +241,23 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         handleLike(post.id, this);
     });
 
-    // 댓글 토글 (접기/펼치기)
+    // 댓글 토글 (스무스 슬라이드)
     const commentSection = article.querySelector(`#comments-${post.id}`);
     article.querySelector('.comment-toggle-btn').addEventListener('click', () => {
-        const isOpen = !commentSection.classList.contains('collapsed');
-        if (isOpen) {
-            commentSection.classList.add('collapsed');
-        } else {
-            commentSection.classList.remove('collapsed');
+        const isHidden = commentSection.classList.contains('comment-section-hidden');
+        if (isHidden) {
+            // 펼치기: 실제 높이 계산 후 애니메이션
+            commentSection.classList.remove('comment-section-hidden');
+            commentSection.style.maxHeight = commentSection.scrollHeight + 'px';
             loadComments(post.id); // 최신 댓글 새로고침
+        } else {
+            // 접기
+            commentSection.style.maxHeight = '0px';
+            commentSection.addEventListener('transitionend', () => {
+                if (commentSection.style.maxHeight === '0px') {
+                    commentSection.classList.add('comment-section-hidden');
+                }
+            }, { once: true });
         }
     });
 
@@ -333,7 +344,7 @@ async function handleLike(postId, btn) {
 }
 
 /* ─────────────────────────────────────────
-   댓글 로드 (최근 5개)
+   댓글 로드 (전체, profiles join)
 ───────────────────────────────────────── */
 async function loadComments(postId) {
     const listEl = document.getElementById(`comment-list-${postId}`);
@@ -342,30 +353,39 @@ async function loadComments(postId) {
     try {
         const { data: comments, error } = await supabase
             .from('comments')
-            .select('*')
+            .select('*, profiles(username, avatar_url)')
             .eq('post_id', postId)
-            .order('created_at', { ascending: false })
-            .limit(5);
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
 
-        const recent = (comments || []).reverse();
+        const all = comments || [];
 
-        if (recent.length === 0) {
+        if (all.length === 0) {
             listEl.innerHTML = '<p class="no-comments">아직 댓글이 없어요.</p>';
             return;
         }
 
-        listEl.innerHTML = recent.map(c => `
+        listEl.innerHTML = all.map(c => {
+            const cUsername = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
+            const cAvatar = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+            return `
             <div class="comment-item">
                 <img class="comment-avatar-sm"
-                    src="https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}" alt="">
+                    src="${cAvatar}" alt="">
                 <div class="comment-bubble">
-                    <span class="comment-user">@${c.user_id?.slice(0,8)}</span>
+                    <span class="comment-user">@${cUsername}</span>
                     <p class="comment-text">${escapeHtml(c.content)}</p>
                     <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
+
+        // 댓글 새로고침 후 높이 재계산
+        const commentSection = document.getElementById(`comments-${postId}`);
+        if (commentSection && !commentSection.classList.contains('comment-section-hidden')) {
+            commentSection.style.maxHeight = commentSection.scrollHeight + 'px';
+        }
 
     } catch (err) {
         listEl.innerHTML = `<p class="no-comments" style="color:var(--error)">댓글을 불러오지 못했어요.</p>`;
