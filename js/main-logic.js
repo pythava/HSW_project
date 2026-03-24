@@ -1,5 +1,14 @@
 /* js/main-logic.js */
 
+// 전역 유저 캐시
+let _currentUser = null;
+async function getCurrentUser() {
+    if (_currentUser) return _currentUser;
+    const { data: { user } } = await supabase.auth.getUser();
+    _currentUser = user;
+    return user;
+}
+
 function loadMarked() {
     return new Promise((resolve) => {
         if (window.marked) return resolve();
@@ -52,7 +61,7 @@ async function fetchPosts() {
         }
 
         // 현재 유저 & 좋아요 목록
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getCurrentUser();
         let likedSet = new Set();
         if (user) {
             const { data: likes } = await supabase
@@ -249,7 +258,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
    좋아요 (계정당 1회)
 ───────────────────────────────────────── */
 async function handleLike(postId, btn) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
 
     const isLiked = btn.dataset.liked === 'true';
@@ -280,7 +289,8 @@ async function handleLike(postId, btn) {
         } else {
             const { error } = await supabase.from('likes')
                 .insert({ post_id: postId, user_id: user.id });
-            if (error && error.code !== '23505') throw error;
+            // 409 Conflict 또는 23505 unique 위반은 이미 좋아요 된 것 → 무시
+            if (error && error.code !== '23505' && error.status !== 409) throw error;
         }
 
         // DB에서 실제 count 다시 조회
@@ -355,7 +365,7 @@ async function submitComment(postId, inputEl) {
     const text = inputEl.value.trim();
     if (!text) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
 
     inputEl.value   = '';
