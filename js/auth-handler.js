@@ -19,7 +19,7 @@ async function checkUserStatus() {
                 <img src="${avatar}" style="width:60px; height:60px; border-radius:50%; margin-bottom:10px; border:2px solid var(--primary);">
                 <div style="font-weight:800; font-size:1.1rem;">${username}</div>
                 <div style="color:var(--text-3); font-size:0.85rem; margin-bottom:15px;">Deep Web Resident</div>
-                <a href="/profile/index.html" class="btn-primary" style="display:block; padding:8px; font-size:0.9rem; border-radius:8px; background:var(--bg-0); border:1px solid var(--border);">내 정보 수정</a>
+                <a href="/profile/index.html?id=${user.id}" class="btn-primary" style="display:block; padding:8px; font-size:0.9rem; border-radius:8px; background:var(--bg-0); border:1px solid var(--border); text-align:center;">내 프로필</a>
             </div>
         `;
     } else {
