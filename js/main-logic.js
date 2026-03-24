@@ -45,7 +45,7 @@ async function fetchPosts() {
     try {
         const { data: posts, error } = await supabase
             .from('posts')
-            .select('*')
+            .select('*, profiles(username, avatar_url)')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -118,8 +118,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     article.className = 'post-card';
     article.dataset.postId = post.id;
 
-    const avatar    = `https://api.dicebear.com/7.x/identicon/svg?seed=${post.user_id}`;
-    const username  = post.user_id?.slice(0, 8) || 'anonymous';
+    const avatar    = post.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${post.user_id}`;
+    const username  = post.profiles?.username || post.user_id?.slice(0, 8) || 'anonymous';
     const timeAgo   = formatTime(new Date(post.created_at));
     const tagsHtml  = (post.tags || []).map(t => `<span class="post-tag">#${t}</span>`).join('');
     const likeCount = post.likes_count || 0;
