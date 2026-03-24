@@ -455,3 +455,13 @@ function showToast(msg) {
     requestAnimationFrame(() => t.classList.add('show'));
     setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
 }
+
+.comment-section {
+    max-height: 2000px; /* 또는 충분히 큰 값 */
+    overflow: hidden;
+    transition: max-height 0.35s ease;
+}
+.comment-section-hidden {
+    max-height: 0 !important;
+    overflow: hidden;
+}
