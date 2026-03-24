@@ -456,8 +456,3 @@ function showToast(msg) {
     setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
 }
 
-
-.comment-section-hidden {
-    max-height: 0 !important;
-    overflow: hidden;
-}
