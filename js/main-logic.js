@@ -69,6 +69,18 @@ async function fetchPosts() {
             if (likes) likes.forEach(l => likedSet.add(l.post_id));
         }
 
+        // 모든 게시물의 좋아요 수 한 번에 조회
+        const postIds = posts.map(p => p.id);
+        const { data: likesCounts } = await supabase
+            .from('likes')
+            .select('post_id')
+            .in('post_id', postIds);
+
+        const likesCountMap = {};
+        (likesCounts || []).forEach(l => {
+            likesCountMap[l.post_id] = (likesCountMap[l.post_id] || 0) + 1;
+        });
+
         for (const post of posts) {
             // 댓글 최근 5개 미리 로드
             const { data: comments } = await supabase
@@ -79,6 +91,8 @@ async function fetchPosts() {
                 .limit(5);
 
             const recentComments = (comments || []).reverse();
+            // likes 테이블 기준 실제 count 주입
+            post.likes_count = likesCountMap[post.id] || 0;
             feedContainer.appendChild(
                 createPostCard(post, likedSet.has(post.id), user, recentComments)
             );
