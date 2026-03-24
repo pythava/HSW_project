@@ -252,12 +252,12 @@ async function handleLike(postId, btn) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
 
-    const isLiked  = btn.dataset.liked === 'true';
-    const countEl  = btn.querySelector('.like-count');
-    const iconEl   = btn.querySelector('.like-icon');
-    let count      = parseInt(countEl.textContent) || 0;
+    const isLiked = btn.dataset.liked === 'true';
+    const countEl = btn.querySelector('.like-count');
+    const iconEl  = btn.querySelector('.like-icon');
+    let count     = parseInt(countEl.textContent) || 0;
 
-    // 낙관적 UI
+    // 낙관적 UI 즉시 반영
     if (isLiked) {
         btn.dataset.liked = 'false';
         btn.classList.remove('liked');
@@ -274,21 +274,37 @@ async function handleLike(postId, btn) {
 
     try {
         if (isLiked) {
-            await supabase.from('likes').delete()
+            const { error } = await supabase.from('likes').delete()
                 .eq('post_id', postId).eq('user_id', user.id);
-            await supabase.from('posts')
-                .update({ likes_count: Math.max(0, count - 1) }).eq('id', postId);
+            if (error) throw error;
         } else {
-            // upsert로 중복 방지
             const { error } = await supabase.from('likes')
-                .upsert({ post_id: postId, user_id: user.id }, { onConflict: 'post_id,user_id' });
-            if (!error) {
-                await supabase.from('posts')
-                    .update({ likes_count: count + 1 }).eq('id', postId);
-            }
+                .insert({ post_id: postId, user_id: user.id });
+            if (error && error.code !== '23505') throw error;
         }
+
+        // DB에서 실제 count 다시 조회
+        const { count: realCount } = await supabase
+            .from('likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', postId);
+
+        if (realCount !== null) countEl.textContent = realCount;
+
     } catch (err) {
         console.error('Like error:', err);
+        // 실패 시 UI 롤백
+        if (isLiked) {
+            btn.dataset.liked = 'true';
+            btn.classList.add('liked');
+            iconEl.style.fontVariationSettings = "'FILL' 1";
+        } else {
+            btn.dataset.liked = 'false';
+            btn.classList.remove('liked');
+            iconEl.style.fontVariationSettings = "'FILL' 0";
+        }
+        countEl.textContent = count;
+        showToast('오류가 발생했습니다.');
     }
 }
 
