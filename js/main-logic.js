@@ -33,13 +33,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             tab.classList.add('active');
         });
     });
-
-    // GIF 팝업 외부 클릭 시 닫기
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.gif-picker-btn') && !e.target.closest('.gif-popup')) {
-            closeGifPopup();
-        }
-    });
 });
 
 /* ─────────────────────────────────────────
@@ -91,7 +84,7 @@ async function fetchPosts() {
                 .from('comments')
                 .select('*')
                 .eq('post_id', post.id)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false }); // 최신이 위
 
             const rawComments = comments || [];
 
@@ -188,7 +181,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                 </button>
             </div>
 
-            <!-- 댓글 영역 -->
+            <!-- 댓글 영역 (기본 숨김) -->
             <div class="comment-section collapsed" id="comments-${post.id}">
                 <div class="comment-list" id="comment-list-${post.id}">
                     ${commentsHtml}
@@ -198,7 +191,6 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                         src="https://api.dicebear.com/7.x/identicon/svg?seed=${userSeed}" alt="">
                     <input type="text" class="comment-input"
                         placeholder="댓글 달기..." data-post-id="${post.id}">
-                    <button class="gif-picker-btn" data-post-id="${post.id}" title="GIF 선택">GIF</button>
                     <button class="comment-send-btn">
                         <span class="material-symbols-rounded">send</span>
                     </button>
@@ -253,199 +245,12 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); }
     });
 
-    // GIF 버튼 — body에 팝업 띄우기 (레이아웃 안 깨짐)
-    const gifBtn = article.querySelector('.gif-picker-btn');
-    gifBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openGifPicker(gifBtn, post.id, currentUser);
-    });
-
     article.querySelector('.share-btn').addEventListener('click', () => {
         const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
         navigator.clipboard?.writeText(url).then(() => showToast('링크가 복사됐어요!'));
     });
 
     return article;
-}
-
-/* ─────────────────────────────────────────
-   GIF 피커 — 인스타그램 스타일
-   팝업을 document.body에 직접 붙임 → 레이아웃 무관
-   ★ 키 발급: https://developers.giphy.com
-───────────────────────────────────────── */
-const GIPHY_KEY = 'YOUR_GIPHY_API_KEY'; // ← 발급받은 키로 교체
-
-function closeGifPopup() {
-    document.querySelectorAll('.gif-popup').forEach(p => p.remove());
-    document.querySelectorAll('.gif-overlay').forEach(o => o.remove());
-}
-
-async function openGifPicker(anchorBtn, postId, currentUser) {
-    closeGifPopup();
-
-    // 반투명 오버레이
-    const overlay = document.createElement('div');
-    overlay.className = 'gif-overlay';
-    overlay.addEventListener('click', closeGifPopup);
-    document.body.appendChild(overlay);
-
-    // 팝업 본체
-    const popup = document.createElement('div');
-    popup.className = 'gif-popup';
-    popup.innerHTML = `
-        <div class="gif-popup-header">
-            <span class="gif-popup-title">GIF</span>
-            <div class="gif-search-wrap">
-                <span class="material-symbols-rounded gif-search-icon">search</span>
-                <input class="gif-search-input" placeholder="검색" autocomplete="off" spellcheck="false">
-            </div>
-            <button class="gif-close-btn">
-                <span class="material-symbols-rounded">close</span>
-            </button>
-        </div>
-        <div class="gif-grid" id="gif-grid-${postId}">
-            <div class="gif-loading">
-                <span class="material-symbols-rounded animation-spin">sync</span>
-            </div>
-        </div>
-        <div class="gif-powered">Powered by GIPHY</div>
-    `;
-    document.body.appendChild(popup);
-
-    // 위치: 버튼 기준 위쪽 (화면 밖이면 아래쪽)
-    const rect     = anchorBtn.getBoundingClientRect();
-    const popupW   = 340;
-    const popupH   = 420;
-    let top  = rect.top + window.scrollY - popupH - 8;
-    let left = rect.left + rect.width / 2 - popupW / 2;
-    if (rect.top - popupH - 8 < 8) top = rect.bottom + window.scrollY + 8;
-    if (left < 8) left = 8;
-    if (left + popupW > window.innerWidth - 8) left = window.innerWidth - popupW - 8;
-
-    popup.style.cssText = `top:${top}px;left:${left}px;width:${popupW}px;`;
-
-    const gifGrid    = popup.querySelector(`#gif-grid-${postId}`);
-    const searchInput = popup.querySelector('.gif-search-input');
-
-    popup.querySelector('.gif-close-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        closeGifPopup();
-    });
-    popup.addEventListener('click', (e) => e.stopPropagation());
-
-    // GIF 렌더 — 2열 masonry
-    const renderGifs = (gifs) => {
-        if (!gifs || gifs.length === 0) {
-            gifGrid.innerHTML = '<p class="gif-empty">결과가 없어요 😅</p>';
-            return;
-        }
-        gifGrid.innerHTML = `
-            <div class="gif-col" id="gif-col-a-${postId}"></div>
-            <div class="gif-col" id="gif-col-b-${postId}"></div>
-        `;
-        const colA = gifGrid.querySelector(`#gif-col-a-${postId}`);
-        const colB = gifGrid.querySelector(`#gif-col-b-${postId}`);
-
-        gifs.forEach((g, i) => {
-            const preview = g.images?.fixed_height_small?.url
-                         || g.images?.downsized_small?.url
-                         || g.images?.downsized?.url || '';
-            const url     = g.images?.downsized?.url
-                         || g.images?.original?.url || '';
-            const w = parseInt(g.images?.fixed_height_small?.width  || 100);
-            const h = parseInt(g.images?.fixed_height_small?.height || 100);
-            const ratio = ((h / w) * 100).toFixed(2);
-
-            const wrap = document.createElement('div');
-            wrap.className = 'gif-item-wrap';
-            wrap.innerHTML = `
-                <div style="padding-bottom:${ratio}%;position:relative;overflow:hidden;border-radius:8px;background:var(--bg-2);">
-                    <img class="gif-item" src="${preview}" data-url="${url}"
-                        alt="${escapeHtml(g.title || 'GIF')}" loading="lazy"
-                        style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
-                </div>`;
-
-            wrap.querySelector('.gif-item').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                closeGifPopup();
-                await submitGifComment(postId, url, currentUser);
-            });
-
-            (i % 2 === 0 ? colA : colB).appendChild(wrap);
-        });
-    };
-
-    // GIPHY fetch
-    const fetchGiphy = async (q = '') => {
-        gifGrid.innerHTML = '<div class="gif-loading"><span class="material-symbols-rounded animation-spin">sync</span></div>';
-        try {
-            const base = 'https://api.giphy.com/v1/gifs';
-            const endpoint = q
-                ? `${base}/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=20&rating=g&lang=ko`
-                : `${base}/trending?api_key=${GIPHY_KEY}&limit=20&rating=g`;
-            const res  = await fetch(endpoint);
-            const data = await res.json();
-            renderGifs(data.data || []);
-        } catch {
-            gifGrid.innerHTML = '<p class="gif-empty" style="color:var(--error)">불러오기 실패</p>';
-        }
-    };
-
-    fetchGiphy();
-
-    let debounceTimer;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => fetchGiphy(searchInput.value.trim()), 400);
-    });
-
-    searchInput.focus();
-}
-
-/* ─────────────────────────────────────────
-   GIF 댓글 전송
-───────────────────────────────────────── */
-async function submitGifComment(postId, gifUrl, currentUser) {
-    const user = currentUser || await getCurrentUser();
-    if (!user) { showToast('로그인이 필요합니다.'); return; }
-
-    const gifContent = `[GIF:${gifUrl}]`;
-    const listEl = document.getElementById(`comment-list-${postId}`);
-
-    if (listEl) {
-        const noComment = listEl.querySelector('.no-comments');
-        if (noComment) noComment.remove();
-
-        const tempEl = document.createElement('div');
-        tempEl.className = 'comment-item';
-        const displayName = user.user_metadata?.username || user.email?.split('@')[0] || user.id.slice(0, 8);
-        const avatarSrc   = `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
-        tempEl.innerHTML = `
-            <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
-            <div class="comment-bubble">
-                <span class="comment-user">@${displayName}</span>
-                <img class="comment-gif" src="${gifUrl}" alt="GIF">
-                <span class="comment-time">방금 전</span>
-            </div>`;
-        listEl.prepend(tempEl);
-    }
-
-    const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${postId}"] .comment-count-label`);
-    if (countLabel) {
-        const cur = parseInt(countLabel.textContent) || 0;
-        countLabel.textContent = cur + 1;
-    }
-
-    try {
-        const { error } = await supabase.from('comments').insert({
-            post_id: postId, user_id: user.id,
-            content: gifContent, created_at: new Date()
-        });
-        if (error) throw error;
-        loadComments(postId);
-    } catch (err) {
-        showToast('GIF 전송 실패: ' + err.message);
-    }
 }
 
 /* ─────────────────────────────────────────
@@ -458,21 +263,12 @@ function buildCommentsHtml(comments) {
     return comments.map(c => {
         const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
         const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
-
-        // ★ 버그 수정: regex로 GIF URL 안전하게 추출
-        const gifMatch    = typeof c.content === 'string'
-            ? c.content.match(/^\[GIF:(https?:\/\/.+)\]$/)
-            : null;
-        const contentHtml = gifMatch
-            ? `<img class="comment-gif" src="${gifMatch[1]}" alt="GIF" loading="lazy">`
-            : `<p class="comment-text">${escapeHtml(c.content || '')}</p>`;
-
         return `
             <div class="comment-item">
                 <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
                 <div class="comment-bubble">
                     <span class="comment-user">@${displayName}</span>
-                    ${contentHtml}
+                    <p class="comment-text">${escapeHtml(c.content || '')}</p>
                     <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
                 </div>
             </div>`;
@@ -480,7 +276,7 @@ function buildCommentsHtml(comments) {
 }
 
 /* ─────────────────────────────────────────
-   좋아요
+   좋아요 (계정당 1회)
 ───────────────────────────────────────── */
 async function handleLike(postId, btn) {
     const user = await getCurrentUser();
@@ -609,7 +405,7 @@ async function submitComment(postId, inputEl, currentUser) {
                 <span class="comment-time">방금 전</span>
             </div>`;
 
-        listEl.prepend(tempComment);
+        listEl.prepend(tempComment); // 최신이 위
     }
 
     const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${postId}"] .comment-count-label`);
@@ -627,6 +423,7 @@ async function submitComment(postId, inputEl, currentUser) {
             content: text, created_at: new Date()
         });
         if (error) throw error;
+
         loadComments(postId);
 
     } catch (err) {
