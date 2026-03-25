@@ -82,14 +82,29 @@ async function fetchPosts() {
         });
 
         for (const post of posts) {
-            // 댓글 미리 로드 (제한 없음) — profiles join으로 username 가져오기
+            // 댓글 미리 로드 (제한 없음)
             const { data: comments } = await supabase
                 .from('comments')
-                .select('*, profiles(username, avatar_url)')
+                .select('*')
                 .eq('post_id', post.id)
                 .order('created_at', { ascending: true });
 
-            const recentComments = comments || [];
+            const rawComments = comments || [];
+
+            // 댓글 작성자 user_id 목록으로 profiles 한 번에 조회
+            const commentUserIds = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
+            let profileMap = {};
+            if (commentUserIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, username, avatar_url')
+                    .in('id', commentUserIds);
+                (profiles || []).forEach(p => { profileMap[p.id] = p; });
+            }
+            const recentComments = rawComments.map(c => ({
+                ...c,
+                profiles: profileMap[c.user_id] || null
+            }));
             // likes 테이블 기준 실제 count 주입
             post.likes_count = likesCountMap[post.id] || 0;
             feedContainer.appendChild(
@@ -349,13 +364,31 @@ async function loadComments(postId) {
     try {
         const { data: comments, error } = await supabase
             .from('comments')
-            .select('*, profiles(username, avatar_url)')
+            .select('*')
             .eq('post_id', postId)
             .order('created_at', { ascending: true });
 
         if (error) throw error;
 
-        listEl.innerHTML = buildCommentsHtml(comments || []);
+        const rawComments = comments || [];
+
+        // 작성자 profiles 별도 조회
+        const commentUserIds = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
+        let profileMap = {};
+        if (commentUserIds.length > 0) {
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, username, avatar_url')
+                .in('id', commentUserIds);
+            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+        }
+
+        const enriched = rawComments.map(c => ({
+            ...c,
+            profiles: profileMap[c.user_id] || null
+        }));
+
+        listEl.innerHTML = buildCommentsHtml(enriched);
 
     } catch (err) {
         listEl.innerHTML = `<p class="no-comments" style="color:var(--error)">댓글을 불러오지 못했어요.</p>`;
