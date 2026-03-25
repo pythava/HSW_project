@@ -273,7 +273,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
    GIF 피커 (GIPHY API)
    ★ 키 발급: https://developers.giphy.com
 ───────────────────────────────────────── */
-const GIPHY_KEY = 'YOUR_GIPHY_API_KEY'; // ← 여기에 본인 키 입력
+const GIPHY_KEY = '060HvxPWBZ0iztymKAr7e7MXdlC9TiyS'; // ← 여기에 본인 키 입력
 
 async function openGifPicker(anchorBtn, postId, commentInput, currentUser) {
     // 이미 열린 팝업 닫기
