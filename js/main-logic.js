@@ -80,11 +80,11 @@ async function fetchPosts() {
         });
 
         for (const post of posts) {
-            const { data: comments } = await supabase
+            const { data: comments, error } = await supabase
                 .from('comments')
                 .select('*')
-                .eq('post_id', post.id)
-                .order('created_at', { ascending: true });
+                .eq('post_id', postId)
+                .order('created_at', { ascending: false }); // ← 최신순
 
             const rawComments = comments || [];
 
@@ -411,7 +411,7 @@ async function submitComment(postId, inputEl, currentUser) {
                 <span class="comment-time">방금 전</span>
             </div>`;
 
-        listEl.appendChild(tempComment);
+        listEl.prepend(tempComment); // appendChild → prepend
         listEl.scrollTop = listEl.scrollHeight;
     }
 
