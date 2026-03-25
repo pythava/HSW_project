@@ -60,7 +60,6 @@ async function fetchPosts() {
             return;
         }
 
-        // 현재 유저 & 좋아요 목록
         const user = await getCurrentUser();
         let likedSet = new Set();
         if (user) {
@@ -69,7 +68,6 @@ async function fetchPosts() {
             if (likes) likes.forEach(l => likedSet.add(l.post_id));
         }
 
-        // 모든 게시물의 좋아요 수 한 번에 조회
         const postIds = posts.map(p => p.id);
         const { data: likesCounts } = await supabase
             .from('likes')
@@ -82,7 +80,6 @@ async function fetchPosts() {
         });
 
         for (const post of posts) {
-            // 댓글 미리 로드 (제한 없음)
             const { data: comments } = await supabase
                 .from('comments')
                 .select('*')
@@ -91,7 +88,6 @@ async function fetchPosts() {
 
             const rawComments = comments || [];
 
-            // 댓글 작성자 user_id 목록으로 profiles 한 번에 조회
             const commentUserIds = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
             let profileMap = {};
             if (commentUserIds.length > 0) {
@@ -105,7 +101,7 @@ async function fetchPosts() {
                 ...c,
                 profiles: profileMap[c.user_id] || null
             }));
-            // likes 테이블 기준 실제 count 주입
+
             post.likes_count = likesCountMap[post.id] || 0;
             feedContainer.appendChild(
                 createPostCard(post, likedSet.has(post.id), user, recentComments)
@@ -139,16 +135,12 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     const likeCount = post.likes_count || 0;
     const userSeed  = currentUser ? currentUser.id : 'guest';
 
-    // 본문: marked 렌더
     const renderedFull = window.marked ? marked.parse(post.content || '') : (post.content || '');
-
-    // 댓글 HTML (username 표시)
     const commentsHtml = buildCommentsHtml(recentComments);
 
     article.innerHTML = `
         <div class="post-card-inner">
 
-            <!-- 헤더: 아바타 + 유저 + 시간 -->
             <div class="post-card-header">
                 <img class="post-avatar" src="${avatar}" alt="${username}">
                 <div class="post-meta">
@@ -157,16 +149,13 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                 </div>
             </div>
 
-            <!-- 제목 -->
             ${post.title ? `<h2 class="post-title">${escapeHtml(post.title)}</h2>` : ''}
 
-            <!-- 이미지 (제목 바로 아래) -->
             ${post.image_url ? `
                 <div class="post-image-wrap">
                     <img src="${post.image_url}" alt="첨부 이미지" class="post-image" loading="lazy">
                 </div>` : ''}
 
-            <!-- 본문 미리보기 (3줄 클램프) -->
             <div class="post-body markdown-rendered post-body-collapsed" id="body-${post.id}">
                 ${renderedFull}
             </div>
@@ -174,10 +163,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                 더 보기 <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;">expand_more</span>
             </button>
 
-            <!-- 태그 -->
             ${tagsHtml ? `<div class="post-tags">${tagsHtml}</div>` : ''}
 
-            <!-- 액션 -->
             <div class="post-actions">
                 <button class="action-btn like-btn ${isLiked ? 'liked' : ''}"
                     data-post-id="${post.id}" data-liked="${isLiked}">
@@ -213,8 +200,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         </div>
     `;
 
-    // 더 보기 버튼
-    const bodyEl  = article.querySelector(`#body-${post.id}`);
+    const bodyEl    = article.querySelector(`#body-${post.id}`);
     const expandBtn = article.querySelector(`#expand-${post.id}`);
 
     requestAnimationFrame(() => {
@@ -236,12 +222,10 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         }
     });
 
-    // 좋아요
     article.querySelector('.like-btn').addEventListener('click', function () {
         handleLike(post.id, this);
     });
 
-    // 댓글 토글 (기본 숨김 → 버튼 클릭 시 열기/닫기)
     const commentSection = article.querySelector(`#comments-${post.id}`);
     article.querySelector('.comment-toggle-btn').addEventListener('click', () => {
         const isOpen = !commentSection.classList.contains('collapsed');
@@ -253,16 +237,14 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         }
     });
 
-    // 댓글 전송
     const commentInput   = article.querySelector('.comment-input');
     const commentSendBtn = article.querySelector('.comment-send-btn');
-    const sendComment = () => submitComment(post.id, commentInput);
+    const sendComment = () => submitComment(post.id, commentInput, currentUser);
     commentSendBtn.addEventListener('click', sendComment);
     commentInput.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); }
     });
 
-    // 공유
     article.querySelector('.share-btn').addEventListener('click', () => {
         const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
         navigator.clipboard?.writeText(url).then(() => showToast('링크가 복사됐어요!'));
@@ -272,7 +254,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
 }
 
 /* ─────────────────────────────────────────
-   댓글 HTML 빌더 (username 표시)
+   댓글 HTML 빌더
 ───────────────────────────────────────── */
 function buildCommentsHtml(comments) {
     if (!comments || comments.length === 0) {
@@ -305,7 +287,6 @@ async function handleLike(postId, btn) {
     const iconEl  = btn.querySelector('.like-icon');
     let count     = parseInt(countEl.textContent) || 0;
 
-    // 낙관적 UI 즉시 반영
     if (isLiked) {
         btn.dataset.liked = 'false';
         btn.classList.remove('liked');
@@ -357,7 +338,7 @@ async function handleLike(postId, btn) {
 /* ─────────────────────────────────────────
    댓글 로드 (제한 없음, username 표시)
 ───────────────────────────────────────── */
-async function loadComments(postId) {
+async function loadComments(postId, scrollToBottom = false) {
     const listEl = document.getElementById(`comment-list-${postId}`);
     if (!listEl) return;
 
@@ -372,7 +353,6 @@ async function loadComments(postId) {
 
         const rawComments = comments || [];
 
-        // 작성자 profiles 별도 조회
         const commentUserIds = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
         let profileMap = {};
         if (commentUserIds.length > 0) {
@@ -390,20 +370,57 @@ async function loadComments(postId) {
 
         listEl.innerHTML = buildCommentsHtml(enriched);
 
+        if (scrollToBottom) {
+            listEl.scrollTop = listEl.scrollHeight;
+        }
+
     } catch (err) {
         listEl.innerHTML = `<p class="no-comments" style="color:var(--error)">댓글을 불러오지 못했어요.</p>`;
     }
 }
 
 /* ─────────────────────────────────────────
-   댓글 전송
+   댓글 전송 (낙관적 UI + 자동 스크롤)
 ───────────────────────────────────────── */
-async function submitComment(postId, inputEl) {
+async function submitComment(postId, inputEl, currentUser) {
     const text = inputEl.value.trim();
     if (!text) return;
 
-    const user = await getCurrentUser();
+    const user = currentUser || await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
+
+    const listEl = document.getElementById(`comment-list-${postId}`);
+
+    // 낙관적 UI: 전송 즉시 내 댓글 추가
+    if (listEl) {
+        const noComment = listEl.querySelector('.no-comments');
+        if (noComment) noComment.remove();
+
+        const tempId = `temp-comment-${Date.now()}`;
+        const tempComment = document.createElement('div');
+        tempComment.className = 'comment-item';
+        tempComment.id = tempId;
+
+        const displayName = user.user_metadata?.username || user.email?.split('@')[0] || user.id.slice(0, 8);
+        const avatarSrc   = `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
+        tempComment.innerHTML = `
+            <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
+            <div class="comment-bubble">
+                <span class="comment-user">@${displayName}</span>
+                <p class="comment-text">${escapeHtml(text)}</p>
+                <span class="comment-time">방금 전</span>
+            </div>`;
+
+        listEl.appendChild(tempComment);
+        listEl.scrollTop = listEl.scrollHeight;
+    }
+
+    // 댓글 카운트 낙관적 업데이트
+    const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${postId}"] .comment-count-label`);
+    if (countLabel) {
+        const cur = parseInt(countLabel.textContent) || 0;
+        countLabel.textContent = cur + 1;
+    }
 
     inputEl.value    = '';
     inputEl.disabled = true;
@@ -414,9 +431,15 @@ async function submitComment(postId, inputEl) {
             content: text, created_at: new Date()
         });
         if (error) throw error;
-        loadComments(postId);
+
+        // DB 확정 후 실제 데이터로 교체 + 스크롤
+        loadComments(postId, true);
+
     } catch (err) {
         showToast('댓글 전송 실패: ' + err.message);
+        // 실패 시 임시 댓글 제거
+        const tempEl = listEl?.querySelector('[id^="temp-comment-"]');
+        if (tempEl) tempEl.remove();
         inputEl.value = text;
     } finally {
         inputEl.disabled = false;
