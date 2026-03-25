@@ -82,15 +82,14 @@ async function fetchPosts() {
         });
 
         for (const post of posts) {
-            // 댓글 최근 5개 미리 로드
+            // 댓글 미리 로드 (제한 없음) — profiles join으로 username 가져오기
             const { data: comments } = await supabase
                 .from('comments')
-                .select('*')
+                .select('*, profiles(username, avatar_url)')
                 .eq('post_id', post.id)
-                .order('created_at', { ascending: false })
-                .limit(5);
+                .order('created_at', { ascending: true });
 
-            const recentComments = (comments || []).reverse();
+            const recentComments = comments || [];
             // likes 테이블 기준 실제 count 주입
             post.likes_count = likesCountMap[post.id] || 0;
             feedContainer.appendChild(
@@ -125,21 +124,11 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     const likeCount = post.likes_count || 0;
     const userSeed  = currentUser ? currentUser.id : 'guest';
 
-    // 본문: marked 렌더 후 plain text로 줄여서 미리보기 (3줄)
+    // 본문: marked 렌더
     const renderedFull = window.marked ? marked.parse(post.content || '') : (post.content || '');
 
-    // 댓글 HTML
-    const commentsHtml = recentComments.length === 0
-        ? '<p class="no-comments">아직 댓글이 없어요.</p>'
-        : recentComments.map(c => `
-            <div class="comment-item">
-                <img class="comment-avatar-sm" src="https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}" alt="">
-                <div class="comment-bubble">
-                    <span class="comment-user">@${c.user_id?.slice(0,8)}</span>
-                    <p class="comment-text">${escapeHtml(c.content)}</p>
-                    <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
-                </div>
-            </div>`).join('');
+    // 댓글 HTML (username 표시)
+    const commentsHtml = buildCommentsHtml(recentComments);
 
     article.innerHTML = `
         <div class="post-card-inner">
@@ -190,8 +179,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                 </button>
             </div>
 
-            <!-- 댓글 영역 (기본 표시) -->
-            <div class="comment-section" id="comments-${post.id}">
+            <!-- 댓글 영역 (기본 숨김) -->
+            <div class="comment-section collapsed" id="comments-${post.id}">
                 <div class="comment-list" id="comment-list-${post.id}">
                     ${commentsHtml}
                 </div>
@@ -213,7 +202,6 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     const bodyEl  = article.querySelector(`#body-${post.id}`);
     const expandBtn = article.querySelector(`#expand-${post.id}`);
 
-    // 렌더 후 실제로 클램프가 필요한지 확인
     requestAnimationFrame(() => {
         if (bodyEl.scrollHeight <= bodyEl.clientHeight + 2) {
             expandBtn.style.display = 'none';
@@ -238,7 +226,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         handleLike(post.id, this);
     });
 
-    // 댓글 토글 (접기/펼치기)
+    // 댓글 토글 (기본 숨김 → 버튼 클릭 시 열기/닫기)
     const commentSection = article.querySelector(`#comments-${post.id}`);
     article.querySelector('.comment-toggle-btn').addEventListener('click', () => {
         const isOpen = !commentSection.classList.contains('collapsed');
@@ -246,12 +234,12 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
             commentSection.classList.add('collapsed');
         } else {
             commentSection.classList.remove('collapsed');
-            loadComments(post.id); // 최신 댓글 새로고침
+            loadComments(post.id);
         }
     });
 
     // 댓글 전송
-    const commentInput  = article.querySelector('.comment-input');
+    const commentInput   = article.querySelector('.comment-input');
     const commentSendBtn = article.querySelector('.comment-send-btn');
     const sendComment = () => submitComment(post.id, commentInput);
     commentSendBtn.addEventListener('click', sendComment);
@@ -266,6 +254,28 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     });
 
     return article;
+}
+
+/* ─────────────────────────────────────────
+   댓글 HTML 빌더 (username 표시)
+───────────────────────────────────────── */
+function buildCommentsHtml(comments) {
+    if (!comments || comments.length === 0) {
+        return '<p class="no-comments">아직 댓글이 없어요.</p>';
+    }
+    return comments.map(c => {
+        const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
+        const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+        return `
+            <div class="comment-item">
+                <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
+                <div class="comment-bubble">
+                    <span class="comment-user">@${displayName}</span>
+                    <p class="comment-text">${escapeHtml(c.content)}</p>
+                    <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
+                </div>
+            </div>`;
+    }).join('');
 }
 
 /* ─────────────────────────────────────────
@@ -303,11 +313,9 @@ async function handleLike(postId, btn) {
         } else {
             const { error } = await supabase.from('likes')
                 .insert({ post_id: postId, user_id: user.id });
-            // 409 Conflict 또는 23505 unique 위반은 이미 좋아요 된 것 → 무시
             if (error && error.code !== '23505' && error.status !== 409) throw error;
         }
 
-        // DB에서 실제 count 다시 조회
         const { count: realCount } = await supabase
             .from('likes')
             .select('*', { count: 'exact', head: true })
@@ -317,7 +325,6 @@ async function handleLike(postId, btn) {
 
     } catch (err) {
         console.error('Like error:', err);
-        // 실패 시 UI 롤백
         if (isLiked) {
             btn.dataset.liked = 'true';
             btn.classList.add('liked');
@@ -333,7 +340,7 @@ async function handleLike(postId, btn) {
 }
 
 /* ─────────────────────────────────────────
-   댓글 로드 (최근 5개)
+   댓글 로드 (제한 없음, username 표시)
 ───────────────────────────────────────── */
 async function loadComments(postId) {
     const listEl = document.getElementById(`comment-list-${postId}`);
@@ -342,30 +349,13 @@ async function loadComments(postId) {
     try {
         const { data: comments, error } = await supabase
             .from('comments')
-            .select('*')
+            .select('*, profiles(username, avatar_url)')
             .eq('post_id', postId)
-            .order('created_at', { ascending: false })
-            .limit(5);
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
 
-        const recent = (comments || []).reverse();
-
-        if (recent.length === 0) {
-            listEl.innerHTML = '<p class="no-comments">아직 댓글이 없어요.</p>';
-            return;
-        }
-
-        listEl.innerHTML = recent.map(c => `
-            <div class="comment-item">
-                <img class="comment-avatar-sm"
-                    src="https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}" alt="">
-                <div class="comment-bubble">
-                    <span class="comment-user">@${c.user_id?.slice(0,8)}</span>
-                    <p class="comment-text">${escapeHtml(c.content)}</p>
-                    <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
-                </div>
-            </div>`).join('');
+        listEl.innerHTML = buildCommentsHtml(comments || []);
 
     } catch (err) {
         listEl.innerHTML = `<p class="no-comments" style="color:var(--error)">댓글을 불러오지 못했어요.</p>`;
@@ -382,7 +372,7 @@ async function submitComment(postId, inputEl) {
     const user = await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
 
-    inputEl.value   = '';
+    inputEl.value    = '';
     inputEl.disabled = true;
 
     try {
