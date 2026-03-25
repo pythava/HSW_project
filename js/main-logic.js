@@ -33,6 +33,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             tab.classList.add('active');
         });
     });
+
+    // GIF 팝업 외부 클릭 시 닫기
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.gif-picker-btn') && !e.target.closest('.gif-popup')) {
+            document.querySelectorAll('.gif-popup').forEach(p => p.remove());
+        }
+    });
 });
 
 /* ─────────────────────────────────────────
@@ -80,11 +87,12 @@ async function fetchPosts() {
         });
 
         for (const post of posts) {
+            // ★ 수정: 최신 댓글이 위로 (ascending: false)
             const { data: comments } = await supabase
                 .from('comments')
                 .select('*')
                 .eq('post_id', post.id)
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: false });
 
             const rawComments = comments || [];
 
@@ -191,6 +199,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                         src="https://api.dicebear.com/7.x/identicon/svg?seed=${userSeed}" alt="">
                     <input type="text" class="comment-input"
                         placeholder="댓글 달기..." data-post-id="${post.id}">
+                    <button class="gif-picker-btn" data-post-id="${post.id}" title="GIF 선택">GIF</button>
                     <button class="comment-send-btn">
                         <span class="material-symbols-rounded">send</span>
                     </button>
@@ -245,12 +254,158 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); }
     });
 
+    // ★ GIF 버튼 이벤트
+    const gifBtn = article.querySelector('.gif-picker-btn');
+    gifBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openGifPicker(gifBtn, post.id, commentInput, currentUser);
+    });
+
     article.querySelector('.share-btn').addEventListener('click', () => {
         const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
         navigator.clipboard?.writeText(url).then(() => showToast('링크가 복사됐어요!'));
     });
 
     return article;
+}
+
+/* ─────────────────────────────────────────
+   GIF 피커 (GIPHY API)
+   ★ 키 발급: https://developers.giphy.com
+───────────────────────────────────────── */
+const GIPHY_KEY = 'YOUR_GIPHY_API_KEY'; // ← 여기에 본인 키 입력
+
+async function openGifPicker(anchorBtn, postId, commentInput, currentUser) {
+    // 이미 열린 팝업 닫기
+    document.querySelectorAll('.gif-popup').forEach(p => p.remove());
+
+    const popup = document.createElement('div');
+    popup.className = 'gif-popup';
+    popup.innerHTML = `
+        <div class="gif-popup-header">
+            <input class="gif-search-input" placeholder="GIF 검색..." autocomplete="off">
+            <button class="gif-close-btn"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="gif-grid" id="gif-grid-${postId}">
+            <div class="gif-loading">
+                <span class="material-symbols-rounded animation-spin">sync</span>
+            </div>
+        </div>
+        <div class="gif-powered">Powered by GIPHY</div>
+    `;
+
+    // 팝업 위치 (input row 위쪽)
+    const inputRow = anchorBtn.closest('.comment-input-row');
+    inputRow.style.position = 'relative';
+    inputRow.appendChild(popup);
+
+    const gifGrid = popup.querySelector(`#gif-grid-${postId}`);
+    const searchInput = popup.querySelector('.gif-search-input');
+
+    // 닫기 버튼
+    popup.querySelector('.gif-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup.remove();
+    });
+
+    // GIF 렌더 함수
+    const renderGifs = (gifs) => {
+        if (!gifs || gifs.length === 0) {
+            gifGrid.innerHTML = '<p class="gif-empty">결과가 없어요 😅</p>';
+            return;
+        }
+        gifGrid.innerHTML = gifs.map(g => {
+            // preview: 작은 미리보기 / url: 원본 저장용
+            const preview = g.images?.fixed_height_small?.url || g.images?.downsized?.url || '';
+            const url     = g.images?.downsized?.url || g.images?.original?.url || '';
+            return `<img class="gif-item" src="${preview}" data-url="${url}" alt="${escapeHtml(g.title || 'GIF')}" loading="lazy">`;
+        }).join('');
+
+        gifGrid.querySelectorAll('.gif-item').forEach(img => {
+            img.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const gifUrl = img.dataset.url;
+                popup.remove();
+                await submitGifComment(postId, gifUrl, currentUser);
+            });
+        });
+    };
+
+    // GIPHY 검색/트렌딩 함수
+    const fetchGiphy = async (q = '') => {
+        gifGrid.innerHTML = '<div class="gif-loading"><span class="material-symbols-rounded animation-spin">sync</span></div>';
+        try {
+            const base = 'https://api.giphy.com/v1/gifs';
+            const endpoint = q
+                ? `${base}/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=24&rating=g&lang=ko`
+                : `${base}/trending?api_key=${GIPHY_KEY}&limit=24&rating=g`;
+            const res = await fetch(endpoint);
+            const data = await res.json();
+            renderGifs(data.data || []);
+        } catch {
+            gifGrid.innerHTML = '<p class="gif-empty" style="color:var(--error)">불러오기 실패</p>';
+        }
+    };
+
+    // 초기 트렌딩 GIF 로드
+    fetchGiphy();
+
+    // 검색 디바운스
+    let debounceTimer;
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => fetchGiphy(searchInput.value.trim()), 400);
+    });
+
+    searchInput.focus();
+}
+
+/* ─────────────────────────────────────────
+   GIF 댓글 전송
+───────────────────────────────────────── */
+async function submitGifComment(postId, gifUrl, currentUser) {
+    const user = currentUser || await getCurrentUser();
+    if (!user) { showToast('로그인이 필요합니다.'); return; }
+
+    const gifContent = `[GIF:${gifUrl}]`;
+    const listEl = document.getElementById(`comment-list-${postId}`);
+
+    // 낙관적 UI
+    if (listEl) {
+        const noComment = listEl.querySelector('.no-comments');
+        if (noComment) noComment.remove();
+
+        const tempEl = document.createElement('div');
+        tempEl.className = 'comment-item';
+        const displayName = user.user_metadata?.username || user.email?.split('@')[0] || user.id.slice(0, 8);
+        const avatarSrc   = `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
+        tempEl.innerHTML = `
+            <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
+            <div class="comment-bubble">
+                <span class="comment-user">@${displayName}</span>
+                <img class="comment-gif" src="${gifUrl}" alt="GIF">
+                <span class="comment-time">방금 전</span>
+            </div>`;
+        listEl.prepend(tempEl);
+    }
+
+    // 댓글 카운트 업데이트
+    const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${postId}"] .comment-count-label`);
+    if (countLabel) {
+        const cur = parseInt(countLabel.textContent) || 0;
+        countLabel.textContent = cur + 1;
+    }
+
+    try {
+        const { error } = await supabase.from('comments').insert({
+            post_id: postId, user_id: user.id,
+            content: gifContent, created_at: new Date()
+        });
+        if (error) throw error;
+        loadComments(postId);
+    } catch (err) {
+        showToast('GIF 전송 실패: ' + err.message);
+    }
 }
 
 /* ─────────────────────────────────────────
@@ -263,12 +418,19 @@ function buildCommentsHtml(comments) {
     return comments.map(c => {
         const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
         const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+
+        // ★ GIF 댓글 렌더링
+        const isGif = c.content?.startsWith('[GIF:') && c.content?.endsWith(']');
+        const contentHtml = isGif
+            ? `<img class="comment-gif" src="${c.content.slice(5, -1)}" alt="GIF" loading="lazy">`
+            : `<p class="comment-text">${escapeHtml(c.content)}</p>`;
+
         return `
             <div class="comment-item">
                 <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
                 <div class="comment-bubble">
                     <span class="comment-user">@${displayName}</span>
-                    <p class="comment-text">${escapeHtml(c.content)}</p>
+                    ${contentHtml}
                     <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
                 </div>
             </div>`;
@@ -336,7 +498,7 @@ async function handleLike(postId, btn) {
 }
 
 /* ─────────────────────────────────────────
-   댓글 로드 (제한 없음, username 표시)
+   댓글 로드 — ★ 최신 순 (ascending: false)
 ───────────────────────────────────────── */
 async function loadComments(postId, scrollToBottom = false) {
     const listEl = document.getElementById(`comment-list-${postId}`);
@@ -347,7 +509,7 @@ async function loadComments(postId, scrollToBottom = false) {
             .from('comments')
             .select('*')
             .eq('post_id', postId)
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: false }); // ★ 최신이 위
 
         if (error) throw error;
 
@@ -380,7 +542,7 @@ async function loadComments(postId, scrollToBottom = false) {
 }
 
 /* ─────────────────────────────────────────
-   댓글 전송 (낙관적 UI + 자동 스크롤)
+   댓글 전송 (낙관적 UI)
 ───────────────────────────────────────── */
 async function submitComment(postId, inputEl, currentUser) {
     const text = inputEl.value.trim();
@@ -391,7 +553,7 @@ async function submitComment(postId, inputEl, currentUser) {
 
     const listEl = document.getElementById(`comment-list-${postId}`);
 
-    // 낙관적 UI: 전송 즉시 내 댓글 추가
+    // 낙관적 UI: 최신 순이므로 맨 위에 prepend
     if (listEl) {
         const noComment = listEl.querySelector('.no-comments');
         if (noComment) noComment.remove();
@@ -411,8 +573,7 @@ async function submitComment(postId, inputEl, currentUser) {
                 <span class="comment-time">방금 전</span>
             </div>`;
 
-        listEl.appendChild(tempComment);
-        listEl.scrollTop = listEl.scrollHeight;
+        listEl.prepend(tempComment); // ★ append → prepend (최신이 위)
     }
 
     // 댓글 카운트 낙관적 업데이트
@@ -432,12 +593,10 @@ async function submitComment(postId, inputEl, currentUser) {
         });
         if (error) throw error;
 
-        // DB 확정 후 실제 데이터로 교체 + 스크롤
-        loadComments(postId, true);
+        loadComments(postId);
 
     } catch (err) {
         showToast('댓글 전송 실패: ' + err.message);
-        // 실패 시 임시 댓글 제거
         const tempEl = listEl?.querySelector('[id^="temp-comment-"]');
         if (tempEl) tempEl.remove();
         inputEl.value = text;
