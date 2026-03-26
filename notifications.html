@@ -1,1 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnderGarden | 알림</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="./css/global.css">
+    <link rel="stylesheet" href="./css/main-style.css">
+    <link rel="stylesheet" href="./css/notifications-style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="ug-layout">
+    <nav class="ug-side-nav">
+        <div class="nav-header"><a href="./index.html" class="logo">UnderGarden</a></div>
+        <ul class="nav-links">
+            <li><a href="./index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
+            <li><a href="./messages/index.html"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
+            <li><a href="./search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
+            <li><a href="./notifications.html" class="active noti-link">
+                <span class="material-symbols-rounded">notifications</span>알림
+                <div id="nav-noti-badge" class="badge" style="display:none">0</div>
+            </a></li>
+            <li><a href="./pam.html"><span class="material-symbols-rounded">search</span>팸</a></li>
+            <li><a href="./write/index.html" class="write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
+        </ul>
+        <div class="nav-footer">
+            <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
+        </div>
+    </nav>
 
+    <main class="ug-main-feed">
+        <header class="main-header" style="padding:20px 28px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <h1 style="font-size:1.3rem;font-weight:800;">알림</h1>
+                <button id="mark-all-read" style="font-size:0.82rem;color:var(--primary);font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid var(--primary);">모두 읽음</button>
+            </div>
+        </header>
+        <div id="noti-list" class="feed-scroll-area" style="padding:12px 0;">
+            <div class="feed-loader">
+                <span class="material-symbols-rounded animation-spin">sync</span>
+                알림 불러오는 중...
+            </div>
+        </div>
+    </main>
+
+    <aside class="ug-right-panel">
+        <div id="auth-section" class="auth-status-card"><div class="loader-small">연결 중...</div></div>
+    </aside>
+</div>
+
+<script src="./js/supabase-config.js"></script>
+<script src="./js/auth-handler.js"></script>
+<script>
+const NOTI_ICONS = {
+    follow: 'person_add',
+    like: 'favorite',
+    comment: 'chat_bubble',
+    post: 'edit_note'
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { window.location.href = '/login.html'; return; }
+
+    await loadNotifications(user.id);
+
+    // 모두 읽음 처리
+    document.getElementById('mark-all-read').addEventListener('click', async () => {
+        await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+        document.querySelectorAll('.noti-item.unread').forEach(el => el.classList.remove('unread'));
+        const badge = document.getElementById('nav-noti-badge');
+        if (badge) badge.style.display = 'none';
+    });
+});
+
+async function loadNotifications(userId) {
+    const list = document.getElementById('noti-list');
+    try {
+        // 2일 이내, 최대 20개
+        const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: notis, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', userId)
+            .gte('created_at', twoDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (error) throw error;
+        list.innerHTML = '';
+
+        if (!notis || notis.length === 0) {
+            list.innerHTML = `
+                <div class="feed-empty">
+                    <span class="material-symbols-rounded" style="font-size:48px;color:var(--text-3);display:block;margin-bottom:16px;">notifications_off</span>
+                    <p>최근 2일간 알림이 없어요.</p>
+                </div>`;
+            return;
+        }
+
+        // actor 프로필 일괄 fetch
+        const actorIds = [...new Set(notis.map(n => n.actor_id).filter(Boolean))];
+        let profileMap = {};
+        if (actorIds.length > 0) {
+            const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url').in('id', actorIds);
+            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+        }
+
+        notis.forEach(noti => {
+            const actor = profileMap[noti.actor_id];
+            const avatar = actor?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${noti.actor_id}`;
+            const icon = NOTI_ICONS[noti.type] || 'notifications';
+            const timeAgo = formatNotiTime(new Date(noti.created_at));
+
+            const item = document.createElement('div');
+            item.className = `noti-item ${noti.is_read ? '' : 'unread'}`;
+            item.dataset.id = noti.id;
+            item.innerHTML = `
+                <div class="noti-icon-wrap noti-type-${noti.type}">
+                    <span class="material-symbols-rounded">${icon}</span>
+                </div>
+                <img src="${avatar}" class="noti-avatar">
+                <div class="noti-content">
+                    <p class="noti-message">${noti.message || ''}</p>
+                    <span class="noti-time">${timeAgo}</span>
+                </div>
+                ${!noti.is_read ? '<div class="noti-dot"></div>' : ''}
+            `;
+
+            // 클릭 시 읽음 처리 + 게시물로 이동
+            item.addEventListener('click', async () => {
+                if (!noti.is_read) {
+                    await supabase.from('notifications').update({ is_read: true }).eq('id', noti.id);
+                    item.classList.remove('unread');
+                    item.querySelector('.noti-dot')?.remove();
+                }
+                if (noti.post_id) window.location.href = `./index.html?post=${noti.post_id}`;
+                else if (noti.actor_id) window.location.href = `./profile/index.html?id=${noti.actor_id}`;
+            });
+
+            list.appendChild(item);
+        });
+
+        // 읽음 처리 (일괄)
+        const unreadIds = notis.filter(n => !n.is_read).map(n => n.id);
+        if (unreadIds.length > 0) {
+            setTimeout(async () => {
+                await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+            }, 2000); // 2초 후 자동 읽음
+        }
+
+    } catch (err) {
+        list.innerHTML = `<div class="feed-error"><span class="material-symbols-rounded">error</span>${err.message}</div>`;
+    }
+}
+
+function formatNotiTime(date) {
+    const diff = (Date.now() - date) / 1000;
+    if (diff < 60)     return '방금 전';
+    if (diff < 3600)   return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400)  return `${Math.floor(diff / 3600)}시간 전`;
+    return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+</script>
+</body>
+</html>
