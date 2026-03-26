@@ -1,1 +1,39 @@
-
+/* css/notifications-style.css */
+.noti-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+}
+.noti-item:hover { background: var(--bg-2); }
+.noti-item.unread { background: var(--primary-alpha); }
+.noti-icon-wrap {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.noti-icon-wrap .material-symbols-rounded { font-size: 18px; }
+.noti-type-follow { background: rgba(99,179,237,0.2); color: #63b3ed; }
+.noti-type-like   { background: rgba(252,129,129,0.2); color: #fc8181; }
+.noti-type-comment { background: rgba(154,230,180,0.2); color: #9ae6b4; }
+.noti-type-post   { background: rgba(157,78,221,0.2); color: var(--primary); }
+.noti-avatar {
+    width: 38px; height: 38px;
+    border-radius: 50%; object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+}
+.noti-content { flex: 1; min-width: 0; }
+.noti-message { font-size: 0.88rem; color: var(--text-1); line-height: 1.5; margin-bottom: 3px; }
+.noti-time { font-size: 0.75rem; color: var(--text-3); }
+.noti-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+}
