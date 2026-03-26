@@ -75,7 +75,6 @@ async function fetchPosts(tab = '최신') {
 
         if (tab === '팔로잉') {
             if (!user || _followingIds.size === 0) {
-                if (loader) loader.remove();
                 feedContainer.innerHTML = `
                     <div class="feed-empty">
                         <span class="material-symbols-rounded" style="font-size:48px;color:var(--text-3);display:block;margin-bottom:16px;">group</span>
@@ -88,7 +87,6 @@ async function fetchPosts(tab = '최신') {
 
         const { data: posts, error } = await query;
         if (error) throw error;
-        if (loader) loader.remove();
         feedContainer.innerHTML = '';
 
         if (!posts || posts.length === 0) {
@@ -150,6 +148,15 @@ function setupRealtime() {
             const card = createPostCard(newPost, false, user, []);
             card.style.animation = 'slideInTop 0.4s ease';
             feedContainer.prepend(card);
+        })
+        .subscribe();
+
+    supabase.channel('realtime-posts-delete')
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
+            const deletedId = payload.old?.id;
+            if (!deletedId) return;
+            const card = document.querySelector(`.post-card[data-post-id="${deletedId}"]`);
+            if (card) { card.style.animation = 'fadeOut 0.3s ease forwards'; setTimeout(() => card.remove(), 300); }
         })
         .subscribe();
 
@@ -465,6 +472,9 @@ function setupReportModal() {
                         <span>${r}</span>
                     </label>`).join('')}
             </div>
+            <div id="report-etc-wrap" style="display:none;margin-bottom:12px;">
+                <textarea id="report-etc-input" placeholder="기타 신고 내용을 입력해주세요..." style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-2);color:var(--text-0);font-family:inherit;font-size:0.88rem;resize:none;height:80px;outline:none;"></textarea>
+            </div>
             <button id="report-submit-btn">신고 제출</button>
             <button id="report-cancel-btn">취소</button>
         </div>`;
@@ -472,6 +482,12 @@ function setupReportModal() {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeReportModal(); });
     document.getElementById('report-cancel-btn').addEventListener('click', closeReportModal);
     document.getElementById('report-submit-btn').addEventListener('click', submitReport);
+    // 기타 체크박스 토글
+    overlay.addEventListener('change', (e) => {
+        if (e.target.value === '기타') {
+            document.getElementById('report-etc-wrap').style.display = e.target.checked ? 'block' : 'none';
+        }
+    });
 }
 
 let _reportingPostId = null;
@@ -489,7 +505,13 @@ function closeReportModal() {
 async function submitReport() {
     const user = await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
-    const checked = [...document.querySelectorAll('#report-modal input[type=checkbox]:checked')].map(cb => cb.value);
+    const checked = [...document.querySelectorAll('#report-modal input[type=checkbox]:checked')].map(cb => {
+        if (cb.value === '기타') {
+            const etcText = document.getElementById('report-etc-input')?.value.trim();
+            return etcText ? `기타: ${etcText}` : '기타';
+        }
+        return cb.value;
+    });
     if (checked.length === 0) { showToast('신고 이유를 하나 이상 선택해주세요.'); return; }
     const btn = document.getElementById('report-submit-btn');
     btn.disabled = true; btn.textContent = '제출 중...';
