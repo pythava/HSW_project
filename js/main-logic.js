@@ -1,7 +1,10 @@
-/* js/main-logic.js */
+/* js/main-logic.js — 풀 기능 버전 */
 
-// 전역 유저 캐시
 let _currentUser = null;
+let _currentProfile = null;
+let _followingIds = new Set();
+let _currentTab = '최신';
+
 async function getCurrentUser() {
     if (_currentUser) return _currentUser;
     const { data: { user } } = await supabase.auth.getUser();
@@ -23,7 +26,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadMarked();
     marked.setOptions({ breaks: true, gfm: true });
 
-    fetchPosts();
+    const user = await getCurrentUser();
+    if (user) {
+        await loadFollowingIds(user.id);
+        checkNotiBadge(user.id);
+        // 내 프로필 캐시
+        const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        _currentProfile = p;
+    }
+
+    fetchPosts('최신');
     fetchTrendingQueries();
 
     const tabs = document.querySelectorAll('.feed-tabs .tab-item');
@@ -31,25 +43,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
+            _currentTab = tab.textContent.trim();
+            document.getElementById('main-feed').innerHTML = `
+                <div class="feed-loader">
+                    <span class="material-symbols-rounded animation-spin">sync</span>
+                    가든 연결 중입니다...
+                </div>`;
+            fetchPosts(_currentTab);
         });
     });
+
+    setupRealtime();
+    setupReportModal();
+    setupMiniProfile();
 });
 
-/* ─────────────────────────────────────────
-   게시물 로드
-───────────────────────────────────────── */
-async function fetchPosts() {
+/* ─── 팔로잉 목록 ─── */
+async function loadFollowingIds(userId) {
+    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', userId);
+    _followingIds = new Set((data || []).map(f => f.following_id));
+}
+
+/* ─── 게시물 로드 ─── */
+async function fetchPosts(tab = '최신') {
     const feedContainer = document.getElementById('main-feed');
     const loader = feedContainer.querySelector('.feed-loader');
 
     try {
-        const { data: posts, error } = await supabase
-            .from('posts')
-            .select('*, profiles(username, avatar_url)')
-            .order('created_at', { ascending: false });
+        const user = await getCurrentUser();
+        let query = supabase.from('posts').select('*, profiles(id, username, avatar_url)').order('created_at', { ascending: false });
 
+        if (tab === '팔로잉') {
+            if (!user || _followingIds.size === 0) {
+                if (loader) loader.remove();
+                feedContainer.innerHTML = `
+                    <div class="feed-empty">
+                        <span class="material-symbols-rounded" style="font-size:48px;color:var(--text-3);display:block;margin-bottom:16px;">group</span>
+                        <p>팔로잉하는 사람이 없어요.<br>누군가를 팔로우해보세요!</p>
+                    </div>`;
+                return;
+            }
+            query = query.in('user_id', [..._followingIds]);
+        }
+
+        const { data: posts, error } = await query;
         if (error) throw error;
         if (loader) loader.remove();
+        feedContainer.innerHTML = '';
 
         if (!posts || posts.length === 0) {
             feedContainer.innerHTML = `
@@ -60,69 +100,101 @@ async function fetchPosts() {
             return;
         }
 
-        const user = await getCurrentUser();
         let likedSet = new Set();
         if (user) {
-            const { data: likes } = await supabase
-                .from('likes').select('post_id').eq('user_id', user.id);
+            const { data: likes } = await supabase.from('likes').select('post_id').eq('user_id', user.id);
             if (likes) likes.forEach(l => likedSet.add(l.post_id));
         }
 
         const postIds = posts.map(p => p.id);
-        const { data: likesCounts } = await supabase
-            .from('likes')
-            .select('post_id')
-            .in('post_id', postIds);
-
+        const { data: likesCounts } = await supabase.from('likes').select('post_id').in('post_id', postIds);
         const likesCountMap = {};
-        (likesCounts || []).forEach(l => {
-            likesCountMap[l.post_id] = (likesCountMap[l.post_id] || 0) + 1;
-        });
+        (likesCounts || []).forEach(l => { likesCountMap[l.post_id] = (likesCountMap[l.post_id] || 0) + 1; });
 
         for (const post of posts) {
-            const { data: comments } = await supabase
-                .from('comments')
-                .select('*')
-                .eq('post_id', post.id)
-                .order('created_at', { ascending: false }); // 최신이 위
-
+            const { data: comments } = await supabase.from('comments').select('*').eq('post_id', post.id).order('created_at', { ascending: false });
             const rawComments = comments || [];
-
             const commentUserIds = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
             let profileMap = {};
             if (commentUserIds.length > 0) {
-                const { data: profiles } = await supabase
-                    .from('profiles')
-                    .select('id, username, avatar_url')
-                    .in('id', commentUserIds);
+                const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url').in('id', commentUserIds);
                 (profiles || []).forEach(p => { profileMap[p.id] = p; });
             }
-            const recentComments = rawComments.map(c => ({
-                ...c,
-                profiles: profileMap[c.user_id] || null
-            }));
-
+            const recentComments = rawComments.map(c => ({ ...c, profiles: profileMap[c.user_id] || null }));
             post.likes_count = likesCountMap[post.id] || 0;
-            feedContainer.appendChild(
-                createPostCard(post, likedSet.has(post.id), user, recentComments)
-            );
+            feedContainer.appendChild(createPostCard(post, likedSet.has(post.id), user, recentComments));
         }
 
     } catch (err) {
         console.error('Fetch Error:', err);
-        if (loader) loader.remove();
         feedContainer.innerHTML = `
             <div class="feed-error">
                 <span class="material-symbols-rounded">error</span>
-                데이터를 불러오지 못했습니다.<br>
-                <small>${err.message}</small>
+                데이터를 불러오지 못했습니다.<br><small>${err.message}</small>
             </div>`;
     }
 }
 
-/* ─────────────────────────────────────────
-   카드 생성
-───────────────────────────────────────── */
+/* ─── Realtime ─── */
+function setupRealtime() {
+    supabase.channel('realtime-posts')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+            if (_currentTab !== '최신') return;
+            const newPost = payload.new;
+            const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', newPost.user_id).single();
+            newPost.profiles = profile || null;
+            newPost.likes_count = 0;
+            const user = await getCurrentUser();
+            const feedContainer = document.getElementById('main-feed');
+            feedContainer.querySelector('.feed-empty')?.remove();
+            const card = createPostCard(newPost, false, user, []);
+            card.style.animation = 'slideInTop 0.4s ease';
+            feedContainer.prepend(card);
+        })
+        .subscribe();
+
+    supabase.channel('realtime-comments')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload) => {
+            const c = payload.new;
+            const listEl = document.getElementById(`comment-list-${c.post_id}`);
+            if (!listEl) return;
+            const user = await getCurrentUser();
+            if (user && c.user_id === user.id) return;
+            const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', c.user_id).single();
+            listEl.querySelectorAll('[id^="temp-comment-"]').forEach(t => t.remove());
+            listEl.prepend(createCommentEl({ ...c, profiles: profile || null }));
+            const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${c.post_id}"] .comment-count-label`);
+            if (countLabel) countLabel.textContent = (parseInt(countLabel.textContent) || 0) + 1;
+        })
+        .subscribe();
+
+    supabase.channel('realtime-likes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, async (payload) => {
+            const postId = payload.new?.post_id || payload.old?.post_id;
+            if (!postId) return;
+            const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', postId);
+            const countEl = document.querySelector(`.like-btn[data-post-id="${postId}"] .like-count`);
+            if (countEl && count !== null) countEl.textContent = count;
+        })
+        .subscribe();
+}
+
+/* ─── 알림 뱃지 ─── */
+async function checkNotiBadge(userId) {
+    const badge = document.getElementById('nav-noti-badge');
+    if (!badge) return;
+    const updateBadge = async () => {
+        const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('is_read', false);
+        badge.textContent = count > 9 ? '9+' : count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
+    };
+    await updateBadge();
+    supabase.channel('realtime-noti')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, updateBadge)
+        .subscribe();
+}
+
+/* ─── 카드 생성 ─── */
 function createPostCard(post, isLiked = false, currentUser = null, recentComments = []) {
     const article = document.createElement('article');
     article.className = 'post-card';
@@ -130,35 +202,39 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
 
     const avatar    = post.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${post.user_id}`;
     const username  = post.profiles?.username || post.user_id?.slice(0, 8) || 'anonymous';
+    const profileId = post.profiles?.id || post.user_id;
     const timeAgo   = formatTime(new Date(post.created_at));
     const tagsHtml  = (post.tags || []).map(t => `<span class="post-tag">#${t}</span>`).join('');
     const likeCount = post.likes_count || 0;
     const userSeed  = currentUser ? currentUser.id : 'guest';
-
+    const isOwner   = currentUser && currentUser.id === post.user_id;
     const renderedFull = window.marked ? marked.parse(post.content || '') : (post.content || '');
     const commentsHtml = buildCommentsHtml(recentComments);
 
     article.innerHTML = `
         <div class="post-card-inner">
-
             <div class="post-card-header">
-                <img class="post-avatar" src="${avatar}" alt="${username}">
+                <img class="post-avatar" src="${avatar}" alt="${username}" data-user-id="${profileId}" style="cursor:pointer;">
                 <div class="post-meta">
-                    <span class="post-username">@${username}</span>
+                    <span class="post-username" data-user-id="${profileId}" style="cursor:pointer;">@${username}</span>
                     <span class="post-time">${timeAgo}</span>
+                </div>
+                <div class="post-more-wrap" style="margin-left:auto;position:relative;">
+                    <button class="action-btn post-more-btn"><span class="material-symbols-rounded">more_horiz</span></button>
+                    <div class="post-more-menu" style="display:none;">
+                        ${isOwner ? `
+                        <button class="more-menu-item edit-post-btn"><span class="material-symbols-rounded">edit</span>수정</button>
+                        <button class="more-menu-item delete-post-btn" style="color:var(--error);"><span class="material-symbols-rounded">delete</span>삭제</button>
+                        ` : ''}
+                        <button class="more-menu-item report-post-btn"><span class="material-symbols-rounded">flag</span>신고</button>
+                    </div>
                 </div>
             </div>
 
             ${post.title ? `<h2 class="post-title">${escapeHtml(post.title)}</h2>` : ''}
+            ${post.image_url ? `<div class="post-image-wrap"><img src="${post.image_url}" alt="첨부 이미지" class="post-image" loading="lazy"></div>` : ''}
 
-            ${post.image_url ? `
-                <div class="post-image-wrap">
-                    <img src="${post.image_url}" alt="첨부 이미지" class="post-image" loading="lazy">
-                </div>` : ''}
-
-            <div class="post-body markdown-rendered post-body-collapsed" id="body-${post.id}">
-                ${renderedFull}
-            </div>
+            <div class="post-body markdown-rendered post-body-collapsed" id="body-${post.id}">${renderedFull}</div>
             <button class="expand-btn" id="expand-${post.id}" data-expanded="false">
                 더 보기 <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;">expand_more</span>
             </button>
@@ -166,10 +242,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
             ${tagsHtml ? `<div class="post-tags">${tagsHtml}</div>` : ''}
 
             <div class="post-actions">
-                <button class="action-btn like-btn ${isLiked ? 'liked' : ''}"
-                    data-post-id="${post.id}" data-liked="${isLiked}">
-                    <span class="material-symbols-rounded like-icon"
-                        style="font-variation-settings:'FILL' ${isLiked ? 1 : 0}">favorite</span>
+                <button class="action-btn like-btn ${isLiked ? 'liked' : ''}" data-post-id="${post.id}" data-liked="${isLiked}">
+                    <span class="material-symbols-rounded like-icon" style="font-variation-settings:'FILL' ${isLiked ? 1 : 0}">favorite</span>
                     <span class="like-count">${likeCount}</span>
                 </button>
                 <button class="action-btn comment-toggle-btn" data-post-id="${post.id}">
@@ -181,85 +255,107 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
                 </button>
             </div>
 
-            <!-- 댓글 영역 (기본 숨김) -->
             <div class="comment-section collapsed" id="comments-${post.id}">
-                <div class="comment-list" id="comment-list-${post.id}">
-                    ${commentsHtml}
-                </div>
+                <div class="comment-list" id="comment-list-${post.id}">${commentsHtml}</div>
                 <div class="comment-input-row">
-                    <img class="comment-avatar-sm"
-                        src="https://api.dicebear.com/7.x/identicon/svg?seed=${userSeed}" alt="">
-                    <input type="text" class="comment-input"
-                        placeholder="댓글 달기..." data-post-id="${post.id}">
-                    <button class="comment-send-btn">
-                        <span class="material-symbols-rounded">send</span>
-                    </button>
+                    <img class="comment-avatar-sm" src="https://api.dicebear.com/7.x/identicon/svg?seed=${userSeed}" alt="">
+                    <input type="text" class="comment-input" placeholder="댓글 달기..." data-post-id="${post.id}">
+                    <button class="comment-send-btn"><span class="material-symbols-rounded">send</span></button>
                 </div>
             </div>
-
         </div>
     `;
 
-    const bodyEl    = article.querySelector(`#body-${post.id}`);
+    const bodyEl = article.querySelector(`#body-${post.id}`);
     const expandBtn = article.querySelector(`#expand-${post.id}`);
-
-    requestAnimationFrame(() => {
-        if (bodyEl.scrollHeight <= bodyEl.clientHeight + 2) {
-            expandBtn.style.display = 'none';
-        }
-    });
-
+    requestAnimationFrame(() => { if (bodyEl.scrollHeight <= bodyEl.clientHeight + 2) expandBtn.style.display = 'none'; });
     expandBtn.addEventListener('click', () => {
         const expanded = expandBtn.dataset.expanded === 'true';
-        if (expanded) {
-            bodyEl.classList.add('post-body-collapsed');
-            expandBtn.innerHTML = `더 보기 <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;">expand_more</span>`;
-            expandBtn.dataset.expanded = 'false';
-        } else {
-            bodyEl.classList.remove('post-body-collapsed');
-            expandBtn.innerHTML = `접기 <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;">expand_less</span>`;
-            expandBtn.dataset.expanded = 'true';
-        }
+        bodyEl.classList.toggle('post-body-collapsed', expanded);
+        expandBtn.innerHTML = expanded
+            ? `더 보기 <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;">expand_more</span>`
+            : `접기 <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;">expand_less</span>`;
+        expandBtn.dataset.expanded = expanded ? 'false' : 'true';
     });
 
-    article.querySelector('.like-btn').addEventListener('click', function () {
-        handleLike(post.id, this);
-    });
+    article.querySelector('.like-btn').addEventListener('click', function () { handleLike(post.id, this); });
 
     const commentSection = article.querySelector(`#comments-${post.id}`);
     article.querySelector('.comment-toggle-btn').addEventListener('click', () => {
         const isOpen = !commentSection.classList.contains('collapsed');
-        if (isOpen) {
-            commentSection.classList.add('collapsed');
-        } else {
-            commentSection.classList.remove('collapsed');
-            loadComments(post.id);
-        }
+        commentSection.classList.toggle('collapsed', isOpen);
+        if (!isOpen) loadComments(post.id);
     });
 
-    const commentInput   = article.querySelector('.comment-input');
-    const commentSendBtn = article.querySelector('.comment-send-btn');
+    const commentInput = article.querySelector('.comment-input');
     const sendComment = () => submitComment(post.id, commentInput, currentUser);
-    commentSendBtn.addEventListener('click', sendComment);
-    commentInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); }
-    });
+    article.querySelector('.comment-send-btn').addEventListener('click', sendComment);
+    commentInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } });
 
     article.querySelector('.share-btn').addEventListener('click', () => {
         const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
         navigator.clipboard?.writeText(url).then(() => showToast('링크가 복사됐어요!'));
     });
 
+    // 점3개 메뉴
+    const moreBtn = article.querySelector('.post-more-btn');
+    const moreMenu = article.querySelector('.post-more-menu');
+    moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.post-more-menu').forEach(m => { if (m !== moreMenu) m.style.display = 'none'; });
+        moreMenu.style.display = moreMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', () => { moreMenu.style.display = 'none'; }, { once: false });
+
+    article.querySelector('.edit-post-btn')?.addEventListener('click', () => {
+        moreMenu.style.display = 'none';
+        window.location.href = `./write/index.html?edit=${post.id}`;
+    });
+    article.querySelector('.delete-post-btn')?.addEventListener('click', async () => {
+        moreMenu.style.display = 'none';
+        if (!confirm('정말 삭제할까요?')) return;
+        const { error } = await supabase.from('posts').delete().eq('id', post.id);
+        if (error) { showToast('삭제 실패: ' + error.message); return; }
+        article.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => article.remove(), 300);
+        showToast('게시물이 삭제됐어요.');
+    });
+    article.querySelector('.report-post-btn').addEventListener('click', () => {
+        moreMenu.style.display = 'none';
+        openReportModal(post.id);
+    });
+
+    // 이름 클릭 → 프로필 페이지
+    article.querySelector('.post-username').addEventListener('click', () => {
+        window.location.href = `./profile/index.html?id=${profileId}`;
+    });
+    // 아바타 클릭 → 미니프로필
+    article.querySelector('.post-avatar').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMiniProfile(profileId);
+    });
+
     return article;
 }
 
-/* ─────────────────────────────────────────
-   댓글 HTML 빌더
-───────────────────────────────────────── */
+/* ─── 댓글 엘리먼트 ─── */
+function createCommentEl(c) {
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
+    const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+    div.innerHTML = `
+        <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
+        <div class="comment-bubble">
+            <span class="comment-user">@${displayName}</span>
+            <p class="comment-text">${escapeHtml(c.content || '')}</p>
+            <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
+        </div>`;
+    return div;
+}
+
 function buildCommentsHtml(comments) {
-    if (!comments || comments.length === 0) {
-        return '<p class="no-comments">아직 댓글이 없어요.</p>';
-    }
+    if (!comments || comments.length === 0) return '<p class="no-comments">아직 댓글이 없어요.</p>';
     return comments.map(c => {
         const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
         const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
@@ -275,189 +371,261 @@ function buildCommentsHtml(comments) {
     }).join('');
 }
 
-/* ─────────────────────────────────────────
-   좋아요 (계정당 1회)
-───────────────────────────────────────── */
+/* ─── 미니프로필 ─── */
+function setupMiniProfile() {
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('mini-profile-panel');
+        if (panel && !panel.contains(e.target) && !e.target.closest('.post-avatar')) closeMiniProfile();
+    });
+}
+
+async function openMiniProfile(userId) {
+    let panel = document.getElementById('mini-profile-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'mini-profile-panel';
+        document.body.appendChild(panel);
+    }
+    panel.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-3);"><span class="material-symbols-rounded animation-spin">sync</span></div>`;
+    panel.classList.add('open');
+
+    const [{ data: profile }, currentUser] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        getCurrentUser()
+    ]);
+    const isMe = currentUser && currentUser.id === userId;
+    const isFollowing = _followingIds.has(userId);
+    const avatar = profile?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${userId}`;
+    const username = profile?.username || userId.slice(0, 8);
+
+    panel.innerHTML = `
+        <div class="mini-profile-inner">
+            <button class="mini-close-btn"><span class="material-symbols-rounded">close</span></button>
+            <img src="${avatar}" class="mini-avatar">
+            <div class="mini-username">@${username}</div>
+            ${profile?.description ? `<p class="mini-desc">${escapeHtml(profile.description)}</p>` : ''}
+            <div class="mini-stats">
+                <div><strong>${profile?.post_count || 0}</strong><span>게시물</span></div>
+                <div><strong>${profile?.follower_count || 0}</strong><span>팔로워</span></div>
+                <div><strong>${profile?.following_count || 0}</strong><span>팔로잉</span></div>
+            </div>
+            ${!isMe ? `<button class="mini-follow-btn ${isFollowing ? 'following' : ''}" data-user-id="${userId}">${isFollowing ? '팔로잉' : '팔로우'}</button>` : ''}
+            <a href="./profile/index.html?id=${userId}" class="mini-profile-link">프로필 보기</a>
+        </div>
+    `;
+
+    panel.querySelector('.mini-close-btn').addEventListener('click', closeMiniProfile);
+    panel.querySelector('.mini-follow-btn')?.addEventListener('click', async (e) => {
+        if (!currentUser) { showToast('로그인이 필요합니다.'); return; }
+        await toggleFollow(userId, e.currentTarget);
+    });
+}
+
+function closeMiniProfile() {
+    document.getElementById('mini-profile-panel')?.classList.remove('open');
+}
+
+/* ─── 팔로우 토글 ─── */
+async function toggleFollow(targetUserId, btn) {
+    const user = await getCurrentUser();
+    if (!user) return;
+    const isFollowing = _followingIds.has(targetUserId);
+
+    if (isFollowing) {
+        await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetUserId);
+        _followingIds.delete(targetUserId);
+        if (btn) { btn.textContent = '팔로우'; btn.classList.remove('following'); }
+    } else {
+        await supabase.from('follows').insert({ follower_id: user.id, following_id: targetUserId });
+        _followingIds.add(targetUserId);
+        if (btn) { btn.textContent = '팔로잉'; btn.classList.add('following'); }
+        const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
+        await supabase.from('notifications').insert({
+            user_id: targetUserId, type: 'follow', actor_id: user.id,
+            message: `@${myProfile?.username || '누군가'}님이 팔로우했어요.`
+        });
+    }
+}
+
+/* ─── 신고 모달 ─── */
+const REPORT_REASONS = ['욕설 / 혐오 표현', '성적으로 부적절한 내용', '비하 / 차별', '스팸 / 광고', '개인정보 침해', '허위 정보', '기타'];
+
+function setupReportModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'report-overlay';
+    overlay.innerHTML = `
+        <div id="report-modal">
+            <div class="report-handle"></div>
+            <h3 class="report-title">신고하기</h3>
+            <p class="report-sub">신고 이유를 선택해주세요 (복수 선택 가능)</p>
+            <div class="report-reasons">
+                ${REPORT_REASONS.map(r => `
+                    <label class="report-reason-item">
+                        <input type="checkbox" value="${r}">
+                        <span>${r}</span>
+                    </label>`).join('')}
+            </div>
+            <button id="report-submit-btn">신고 제출</button>
+            <button id="report-cancel-btn">취소</button>
+        </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeReportModal(); });
+    document.getElementById('report-cancel-btn').addEventListener('click', closeReportModal);
+    document.getElementById('report-submit-btn').addEventListener('click', submitReport);
+}
+
+let _reportingPostId = null;
+function openReportModal(postId) {
+    _reportingPostId = postId;
+    document.querySelectorAll('#report-modal input[type=checkbox]').forEach(cb => cb.checked = false);
+    document.getElementById('report-overlay').classList.add('open');
+    document.getElementById('report-modal').classList.add('slide-up');
+}
+function closeReportModal() {
+    document.getElementById('report-overlay').classList.remove('open');
+    document.getElementById('report-modal').classList.remove('slide-up');
+    _reportingPostId = null;
+}
+async function submitReport() {
+    const user = await getCurrentUser();
+    if (!user) { showToast('로그인이 필요합니다.'); return; }
+    const checked = [...document.querySelectorAll('#report-modal input[type=checkbox]:checked')].map(cb => cb.value);
+    if (checked.length === 0) { showToast('신고 이유를 하나 이상 선택해주세요.'); return; }
+    const btn = document.getElementById('report-submit-btn');
+    btn.disabled = true; btn.textContent = '제출 중...';
+    const { error } = await supabase.from('reports').insert({ reporter_id: user.id, post_id: _reportingPostId, reasons: checked });
+    btn.disabled = false; btn.textContent = '신고 제출';
+    if (error) { showToast('신고 실패: ' + error.message); return; }
+    closeReportModal();
+    showToast('신고가 접수됐어요. 검토 후 조치할게요.');
+}
+
+/* ─── 좋아요 ─── */
 async function handleLike(postId, btn) {
     const user = await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
-
     const isLiked = btn.dataset.liked === 'true';
     const countEl = btn.querySelector('.like-count');
     const iconEl  = btn.querySelector('.like-icon');
-    let count     = parseInt(countEl.textContent) || 0;
+    let count = parseInt(countEl.textContent) || 0;
 
     if (isLiked) {
-        btn.dataset.liked = 'false';
-        btn.classList.remove('liked');
-        countEl.textContent = Math.max(0, count - 1);
+        btn.dataset.liked = 'false'; btn.classList.remove('liked'); countEl.textContent = Math.max(0, count - 1);
         iconEl.style.fontVariationSettings = "'FILL' 0";
     } else {
-        btn.dataset.liked = 'true';
-        btn.classList.add('liked');
-        countEl.textContent = count + 1;
+        btn.dataset.liked = 'true'; btn.classList.add('liked'); countEl.textContent = count + 1;
         iconEl.style.fontVariationSettings = "'FILL' 1";
-        btn.classList.add('like-pop');
-        setTimeout(() => btn.classList.remove('like-pop'), 400);
+        btn.classList.add('like-pop'); setTimeout(() => btn.classList.remove('like-pop'), 400);
     }
 
     try {
         if (isLiked) {
-            const { error } = await supabase.from('likes').delete()
-                .eq('post_id', postId).eq('user_id', user.id);
+            const { error } = await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', user.id);
             if (error) throw error;
         } else {
-            const { error } = await supabase.from('likes')
-                .insert({ post_id: postId, user_id: user.id });
+            const { error } = await supabase.from('likes').insert({ post_id: postId, user_id: user.id });
             if (error && error.code !== '23505' && error.status !== 409) throw error;
+            const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).single();
+            if (post && post.user_id !== user.id) {
+                const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
+                await supabase.from('notifications').insert({
+                    user_id: post.user_id, type: 'like', actor_id: user.id, post_id: postId,
+                    message: `@${myProfile?.username || '누군가'}님이 회원님의 게시물을 좋아해요.`
+                });
+            }
         }
-
-        const { count: realCount } = await supabase
-            .from('likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', postId);
-
+        const { count: realCount } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', postId);
         if (realCount !== null) countEl.textContent = realCount;
-
     } catch (err) {
-        console.error('Like error:', err);
-        if (isLiked) {
-            btn.dataset.liked = 'true';
-            btn.classList.add('liked');
-            iconEl.style.fontVariationSettings = "'FILL' 1";
-        } else {
-            btn.dataset.liked = 'false';
-            btn.classList.remove('liked');
-            iconEl.style.fontVariationSettings = "'FILL' 0";
-        }
+        if (isLiked) { btn.dataset.liked = 'true'; btn.classList.add('liked'); iconEl.style.fontVariationSettings = "'FILL' 1"; }
+        else { btn.dataset.liked = 'false'; btn.classList.remove('liked'); iconEl.style.fontVariationSettings = "'FILL' 0"; }
         countEl.textContent = count;
         showToast('오류가 발생했습니다.');
     }
 }
 
-/* ─────────────────────────────────────────
-   댓글 로드 (최신순)
-───────────────────────────────────────── */
+/* ─── 댓글 로드/전송 ─── */
 async function loadComments(postId) {
     const listEl = document.getElementById(`comment-list-${postId}`);
     if (!listEl) return;
-
     try {
-        const { data: comments, error } = await supabase
-            .from('comments')
-            .select('*')
-            .eq('post_id', postId)
-            .order('created_at', { ascending: false });
-
+        const { data: comments, error } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: false });
         if (error) throw error;
-
         const rawComments = comments || [];
-        const commentUserIds = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
+        const ids = [...new Set(rawComments.map(c => c.user_id).filter(Boolean))];
         let profileMap = {};
-        if (commentUserIds.length > 0) {
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, username, avatar_url')
-                .in('id', commentUserIds);
+        if (ids.length > 0) {
+            const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url').in('id', ids);
             (profiles || []).forEach(p => { profileMap[p.id] = p; });
         }
-
-        const enriched = rawComments.map(c => ({
-            ...c,
-            profiles: profileMap[c.user_id] || null
-        }));
-
-        listEl.innerHTML = buildCommentsHtml(enriched);
-
+        listEl.innerHTML = buildCommentsHtml(rawComments.map(c => ({ ...c, profiles: profileMap[c.user_id] || null })));
     } catch {
         listEl.innerHTML = `<p class="no-comments" style="color:var(--error)">댓글을 불러오지 못했어요.</p>`;
     }
 }
 
-/* ─────────────────────────────────────────
-   댓글 전송 (낙관적 UI)
-───────────────────────────────────────── */
 async function submitComment(postId, inputEl, currentUser) {
     const text = inputEl.value.trim();
     if (!text) return;
-
     const user = currentUser || await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
 
     const listEl = document.getElementById(`comment-list-${postId}`);
-
     if (listEl) {
-        const noComment = listEl.querySelector('.no-comments');
-        if (noComment) noComment.remove();
-
-        const tempId = `temp-comment-${Date.now()}`;
-        const tempComment = document.createElement('div');
-        tempComment.className = 'comment-item';
-        tempComment.id = tempId;
-
-        const displayName = user.user_metadata?.username || user.email?.split('@')[0] || user.id.slice(0, 8);
-        const avatarSrc   = `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
-        tempComment.innerHTML = `
+        listEl.querySelector('.no-comments')?.remove();
+        const tempEl = document.createElement('div');
+        tempEl.className = 'comment-item';
+        tempEl.id = `temp-comment-${Date.now()}`;
+        const displayName = _currentProfile?.username || user.email?.split('@')[0] || user.id.slice(0, 8);
+        const avatarSrc = _currentProfile?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
+        tempEl.innerHTML = `
             <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
             <div class="comment-bubble">
                 <span class="comment-user">@${displayName}</span>
                 <p class="comment-text">${escapeHtml(text)}</p>
                 <span class="comment-time">방금 전</span>
             </div>`;
-
-        listEl.prepend(tempComment); // 최신이 위
+        listEl.prepend(tempEl);
     }
-
     const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${postId}"] .comment-count-label`);
-    if (countLabel) {
-        const cur = parseInt(countLabel.textContent) || 0;
-        countLabel.textContent = cur + 1;
-    }
-
-    inputEl.value    = '';
-    inputEl.disabled = true;
+    if (countLabel) countLabel.textContent = (parseInt(countLabel.textContent) || 0) + 1;
+    inputEl.value = ''; inputEl.disabled = true;
 
     try {
-        const { error } = await supabase.from('comments').insert({
-            post_id: postId, user_id: user.id,
-            content: text, created_at: new Date()
-        });
+        const { error } = await supabase.from('comments').insert({ post_id: postId, user_id: user.id, content: text, created_at: new Date() });
         if (error) throw error;
-
+        const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).single();
+        if (post && post.user_id !== user.id) {
+            const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
+            await supabase.from('notifications').insert({
+                user_id: post.user_id, type: 'comment', actor_id: user.id, post_id: postId,
+                message: `@${myProfile?.username || '누군가'}님이 댓글을 달았어요: "${text.slice(0, 30)}${text.length > 30 ? '...' : ''}"`
+            });
+        }
         loadComments(postId);
-
     } catch (err) {
         showToast('댓글 전송 실패: ' + err.message);
-        const tempEl = listEl?.querySelector('[id^="temp-comment-"]');
-        if (tempEl) tempEl.remove();
+        listEl?.querySelector('[id^="temp-comment-"]')?.remove();
         inputEl.value = text;
     } finally {
-        inputEl.disabled = false;
-        inputEl.focus();
+        inputEl.disabled = false; inputEl.focus();
     }
 }
 
-/* ─────────────────────────────────────────
-   인기 검색어
-───────────────────────────────────────── */
+/* ─── 인기 검색어 ─── */
 async function fetchTrendingQueries() {
     const trendingList = document.getElementById('trending-queries');
     if (!trendingList) return;
-
     try {
         const { data, error } = await supabase.from('search_logs').select('query');
         if (error) throw error;
-
-        const counts = (data || []).reduce((acc, c) => {
-            acc[c.query] = (acc[c.query] || 0) + 1; return acc;
-        }, {});
-        const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,5);
-
+        const counts = (data || []).reduce((acc, c) => { acc[c.query] = (acc[c.query] || 0) + 1; return acc; }, {});
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
         trendingList.innerHTML = sorted.length === 0
             ? '<li style="color:var(--text-3);font-size:0.9rem;">검색 데이터가 없습니다.</li>'
             : sorted.map(([q, cnt], i) => `
                 <li>
-                    <a href="/search.html?q=${encodeURIComponent(q)}">${i+1}. ${q}</a>
+                    <a href="/search.html?q=${encodeURIComponent(q)}">${i + 1}. ${q}</a>
                     <span class="count">${cnt > 10 ? '🔥' : cnt}</span>
                 </li>`).join('');
     } catch {
@@ -465,28 +633,21 @@ async function fetchTrendingQueries() {
     }
 }
 
-/* ─────────────────────────────────────────
-   유틸
-───────────────────────────────────────── */
+/* ─── 유틸 ─── */
 function formatTime(date) {
     const diff = (Date.now() - date) / 1000;
     if (diff < 60)     return '방금 전';
-    if (diff < 3600)   return `${Math.floor(diff/60)}분 전`;
-    if (diff < 86400)  return `${Math.floor(diff/3600)}시간 전`;
-    if (diff < 604800) return `${Math.floor(diff/86400)}일 전`;
-    return `${date.getMonth()+1}월 ${date.getDate()}일`;
+    if (diff < 3600)   return `${Math.floor(diff / 60)}분 전`;
+    if (diff < 86400)  return `${Math.floor(diff / 3600)}시간 전`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
+    return `${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
-
 function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function showToast(msg) {
     const t = document.createElement('div');
-    t.className = 'ug-toast';
-    t.textContent = msg;
+    t.className = 'ug-toast'; t.textContent = msg;
     document.body.appendChild(t);
     requestAnimationFrame(() => t.classList.add('show'));
     setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
