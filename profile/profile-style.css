@@ -103,11 +103,21 @@
     color: white;
     font-size: 0.88rem;
     font-weight: 700;
-    border: none;
+    border: 1px solid var(--primary);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
-.profile-follow-btn:hover { background: var(--primary-hover); }
+.profile-follow-btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.profile-follow-btn.following {
+    background: transparent;
+    color: var(--text-2);
+    border-color: var(--border);
+}
+.profile-follow-btn.following:hover {
+    background: var(--bg-2);
+    color: var(--error);
+    border-color: var(--error);
+}
 
 .profile-desc {
     font-size: 0.9rem;
