@@ -87,7 +87,24 @@ async function loadProfile(userId, isOwner, currentUser) {
         document.getElementById('edit-organization').value = profile.organization || '';
     } else {
         // 남의 프로필이면 팔로우 버튼
-        document.getElementById('follow-btn').style.display = 'block';
+        const followBtn = document.getElementById('follow-btn');
+        if (followBtn) {
+            followBtn.style.display = 'block';
+            // 현재 팔로우 상태 확인
+            if (currentUser) {
+                const { data: existingFollow } = await supabase
+                    .from('follows')
+                    .select('id')
+                    .eq('follower_id', currentUser.id)
+                    .eq('following_id', userId)
+                    .single();
+                if (existingFollow) {
+                    followBtn.textContent = '팔로잉';
+                    followBtn.classList.add('following');
+                }
+            }
+            followBtn.addEventListener('click', () => handleFollowToggle(userId, followBtn, currentUser));
+        }
     }
 }
 
@@ -176,6 +193,36 @@ async function uploadAvatar(e, userId) {
 
     } catch (err) {
         showToast('업로드 실패: ' + err.message);
+    }
+}
+
+/* ─────────────────────────────────────────
+   팔로우 토글
+───────────────────────────────────────── */
+async function handleFollowToggle(targetUserId, btn, currentUser) {
+    if (!currentUser) { showToast('로그인이 필요합니다.'); return; }
+    const isFollowing = btn.classList.contains('following');
+
+    if (isFollowing) {
+        await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', targetUserId);
+        btn.textContent = '팔로우';
+        btn.classList.remove('following');
+        // 팔로워 수 UI 감소
+        const el = document.getElementById('stat-followers');
+        if (el) el.textContent = Math.max(0, parseInt(el.textContent) - 1);
+    } else {
+        await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: targetUserId });
+        btn.textContent = '팔로잉';
+        btn.classList.add('following');
+        // 팔로워 수 UI 증가
+        const el = document.getElementById('stat-followers');
+        if (el) el.textContent = parseInt(el.textContent) + 1;
+        // 알림 생성
+        const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', currentUser.id).single();
+        await supabase.from('notifications').insert({
+            user_id: targetUserId, type: 'follow', actor_id: currentUser.id,
+            message: `@${myProfile?.username || '누군가'}님이 팔로우했어요.`
+        });
     }
 }
 
