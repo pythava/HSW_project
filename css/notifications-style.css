@@ -37,3 +37,18 @@
     background: var(--primary);
     flex-shrink: 0;
 }
+
+.noti-preview {
+    flex-shrink: 0;
+    max-width: 70px;
+    font-size: 0.72rem;
+    color: var(--text-3);
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 7px;
+    line-height: 1.4;
+    text-align: center;
+    word-break: break-all;
+    align-self: center;
+}
