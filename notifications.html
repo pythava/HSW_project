@@ -114,6 +114,9 @@ async function loadNotifications(userId) {
             const icon = NOTI_ICONS[noti.type] || 'notifications';
             const timeAgo = formatNotiTime(new Date(noti.created_at));
 
+            // 미리보기 텍스트 (post_preview 또는 message에서 추출)
+            const previewText = noti.post_preview || '';
+
             const item = document.createElement('div');
             item.className = `noti-item ${noti.is_read ? '' : 'unread'}`;
             item.dataset.id = noti.id;
@@ -126,6 +129,7 @@ async function loadNotifications(userId) {
                     <p class="noti-message">${noti.message || ''}</p>
                     <span class="noti-time">${timeAgo}</span>
                 </div>
+                ${previewText ? `<div class="noti-preview">${previewText.slice(0, 40)}${previewText.length > 40 ? '...' : ''}</div>` : ''}
                 ${!noti.is_read ? '<div class="noti-dot"></div>' : ''}
             `;
 
