@@ -70,8 +70,12 @@ async function loadProfile(userId, isOwner, currentUser) {
     document.getElementById('profile-description').textContent = profile.description || '';
     document.title = `UnderGarden | ${username}`;
 
-    // 통계
-    document.getElementById('stat-posts').textContent = profile.post_count || 0;
+    // 통계 - post_count는 실제 게시물 수로 계산
+    const { count: realPostCount } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+    document.getElementById('stat-posts').textContent = realPostCount || 0;
     document.getElementById('stat-followers').textContent = profile.follower_count || 0;
     document.getElementById('stat-following').textContent = profile.following_count || 0;
 
