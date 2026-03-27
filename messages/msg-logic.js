@@ -352,15 +352,13 @@ function subscribeToRoom(roomId) {
 
 function appendNewMessage(msg) {
     const container = document.getElementById('chat-messages');
-    const lastEl = container.lastElementChild;
-
     const profile = msg.profiles;
     const username = profile?.username || '알 수 없음';
     const avatar = profile?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${msg.user_id}`;
     const timeStr = formatTime(new Date(msg.created_at));
 
-    // 마지막 메시지가 같은 유저인지 확인
-    const lastGroup = container.querySelector('.msg-group:last-of-type, .msg-continuation:last-of-type');
+    // 마지막 메시지 그룹이 같은 유저인지 확인
+    const lastGroup = container.querySelector('.msg-group:last-of-type');
     const isContinuation = lastGroup && lastGroup.dataset.userId === msg.user_id;
 
     let el;
@@ -404,6 +402,21 @@ async function sendMessage() {
     input.value = '';
     input.style.height = 'auto';
 
+    // 내 메시지 즉시 화면에 표시
+    const fakeMsg = {
+        id: 'temp_' + Date.now(),
+        room_id: _currentRoom.id,
+        user_id: _me.id,
+        content,
+        created_at: new Date().toISOString(),
+        profiles: {
+            id: _me.id,
+            username: _myProfile?.username || _me.email.split('@')[0],
+            avatar_url: _myProfile?.avatar_url
+        }
+    };
+    appendNewMessage(fakeMsg);
+
     const { error } = await supabase
         .from('messages')
         .insert({
@@ -414,13 +427,11 @@ async function sendMessage() {
 
     if (error) console.error('메시지 전송 실패:', error);
 
-    // updated_at 업데이트
     await supabase
         .from('message_rooms')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', _currentRoom.id);
 }
-
 /* ─────────────────────────────────────────
    멤버 패널
 ───────────────────────────────────────── */
