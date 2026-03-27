@@ -321,10 +321,11 @@ function renderMessages(container, messages) {
 function subscribeToRoom(roomId) {
     if (_realtimeChannel) {
         supabase.removeChannel(_realtimeChannel);
+        _realtimeChannel = null;
     }
 
     _realtimeChannel = supabase
-        .channel(`room:${roomId}`)
+        .channel(`room-${roomId}-${Date.now()}`)
         .on('postgres_changes', {
             event: 'INSERT',
             schema: 'public',
@@ -332,7 +333,9 @@ function subscribeToRoom(roomId) {
             filter: `room_id=eq.${roomId}`
         }, async (payload) => {
             const msg = payload.new;
-            // 프로필 조회
+            // 내가 보낸 메시지는 이미 화면에 있으니 스킵
+            if (msg.user_id === _me.id) return;
+
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('id, username, avatar_url')
@@ -342,7 +345,9 @@ function subscribeToRoom(roomId) {
             msg.profiles = profile;
             appendNewMessage(msg);
         })
-        .subscribe();
+        .subscribe((status) => {
+            console.log('realtime status:', status);
+        });
 }
 
 function appendNewMessage(msg) {
