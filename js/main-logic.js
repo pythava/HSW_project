@@ -239,7 +239,20 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
             </div>
 
             ${post.title ? `<h2 class="post-title">${escapeHtml(post.title)}</h2>` : ''}
-            ${post.image_url ? `<div class="post-image-wrap"><img src="${post.image_url}" alt="첨부 이미지" class="post-image" loading="lazy"></div>` : ''}
+            ${(() => {
+                const imgs = (post.image_urls && post.image_urls.length > 0) ? post.image_urls : (post.image_url ? [post.image_url] : []);
+                if (imgs.length === 0) return '';
+                if (imgs.length === 1) return `<div class="post-image-wrap"><img src="${imgs[0]}" alt="첨부 이미지" class="post-image" loading="lazy"></div>`;
+                const dots = imgs.map((_, i) => `<span class="carousel-dot${i===0?' active':''}" data-index="${i}"></span>`).join('');
+                const slides = imgs.map((url, i) => `<div class="carousel-slide${i===0?' active':''}"><img src="${url}" alt="이미지 ${i+1}" loading="lazy"></div>`).join('');
+                return `<div class="post-carousel" data-post-id="${post.id}" data-current="0" data-total="${imgs.length}">
+                    <div class="carousel-slides">${slides}</div>
+                    <button class="carousel-btn carousel-prev"><span class="material-symbols-rounded">chevron_left</span></button>
+                    <button class="carousel-btn carousel-next"><span class="material-symbols-rounded">chevron_right</span></button>
+                    <div class="carousel-dots">${dots}</div>
+                    <div class="carousel-counter">1 / ${imgs.length}</div>
+                </div>`;
+            })()}
 
             <div class="post-body markdown-rendered post-body-collapsed" id="body-${post.id}">${renderedFull}</div>
             <button class="expand-btn" id="expand-${post.id}" data-expanded="false">
@@ -674,3 +687,27 @@ function showToast(msg) {
     requestAnimationFrame(() => t.classList.add('show'));
     setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
 }
+
+/* ─── 캐러셀 이벤트 (이벤트 위임) ─── */
+document.addEventListener('click', (e) => {
+    const prevBtn = e.target.closest('.carousel-prev');
+    const nextBtn = e.target.closest('.carousel-next');
+    const dot = e.target.closest('.carousel-dot');
+
+    if (prevBtn || nextBtn || dot) {
+        const carousel = (prevBtn || nextBtn || dot).closest('.post-carousel');
+        if (!carousel) return;
+        const total = parseInt(carousel.dataset.total);
+        let current = parseInt(carousel.dataset.current);
+
+        if (prevBtn) current = (current - 1 + total) % total;
+        else if (nextBtn) current = (current + 1) % total;
+        else if (dot) current = parseInt(dot.dataset.index);
+
+        carousel.dataset.current = current;
+        carousel.querySelectorAll('.carousel-slide').forEach((s, i) => s.classList.toggle('active', i === current));
+        carousel.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === current));
+        const counter = carousel.querySelector('.carousel-counter');
+        if (counter) counter.textContent = `${current + 1} / ${total}`;
+    }
+});
