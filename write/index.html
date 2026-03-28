@@ -1,289 +1,114 @@
-/**
- * UnderGarden Write Logic — 다중 이미지 지원 버전
- */
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnderGarden | Plant Seed</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/main-style.css">
+    <link rel="stylesheet" href="./write-style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="ug-layout">
+        <nav class="ug-side-nav">
+            <div class="nav-header">
+                <a href="../index.html" class="logo">UnderGarden</a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
+                <li><a href="../messages/index.html"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
+                <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
+                <li><a href="../notifications.html"><span class="material-symbols-rounded">notifications</span>알림</a></li>
+                <li><a href="../pam.html"><span class="material-symbols-rounded">search</span>팸</a></li>
+                <li><a href="./index.html" class="active write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
+            </ul>
+            <div class="nav-footer">
+                <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
+            </div>
+        </nav>
 
-document.addEventListener('DOMContentLoaded', () => {
-    const editor       = document.getElementById('editor');
-    const preview      = document.getElementById('preview');
-    const tabs         = document.querySelectorAll('.tab-item');
-    const tabPanes     = document.querySelectorAll('.tab-pane');
-    const imageInput   = document.getElementById('post-image-file');
-    const uploadLabelBtn = document.getElementById('upload-label-btn');
-    const multiPreview = document.getElementById('multi-image-preview');
-    const imageThumbs  = document.getElementById('image-thumbs');
-    const tagInput     = document.getElementById('tag-input');
-    const tagList      = document.getElementById('tag-list');
-    const submitBtn    = document.getElementById('submit-post');
-    const postTitle    = document.getElementById('post-title');
-    const pageTitle    = document.querySelector('.main-header h1');
+        <main class="ug-main-feed">
+            <header class="main-header" style="display:flex;justify-content:space-between;align-items:center;padding:24px 30px;">
+                <h1>PLANT NEW SEED</h1>
+                <button id="submit-post" class="write-submit-btn">씨앗 심기</button>
+            </header>
+            <div class="write-container">
+                <input type="text" id="post-title" class="ug-input-underlined" placeholder="제목을 입력하세요...">
 
-    let tags = [];
-    let isDirty = false;
-    let editPostId = null;
-    let existingImageUrls = [];
-    let newImageFiles = [];
+                <!-- 다중 이미지 업로드 -->
+                <div class="image-upload-wrapper">
+                    <label for="post-image-file" class="image-upload-label" id="upload-label-btn">
+                        <span class="material-symbols-rounded">add_photo_alternate</span>
+                        <span>사진 첨부 (최대 10장)</span>
+                    </label>
+                    <input type="file" id="post-image-file" accept="image/*" multiple style="display:none;">
+                    <div id="multi-image-preview" class="multi-image-preview" style="display:none;">
+                        <div id="image-thumbs" class="image-thumbs"></div>
+                        <label for="post-image-file" class="add-more-btn">
+                            <span class="material-symbols-rounded">add_photo_alternate</span>
+                            <span>사진 추가</span>
+                        </label>
+                    </div>
+                </div>
 
-    const params = new URLSearchParams(window.location.search);
-    editPostId = params.get('edit');
-    if (editPostId) {
-        pageTitle.textContent = 'EDIT SEED';
-        submitBtn.textContent = '수정 완료';
-        loadExistingPost(editPostId);
-    }
+                <div class="editor-tabs">
+                    <button class="tab-item active" data-tab="edit-mode">원래 (Write)</button>
+                    <button class="tab-item" data-tab="preview-mode">미리보기 (Preview)</button>
+                </div>
+                <div id="edit-mode" class="tab-pane active">
+                    <div class="md-editor-container">
+                        <div class="md-toolbar">
+                            <button type="button" class="t-btn" data-action="h1">H1</button>
+                            <button type="button" class="t-btn" data-action="h2">H2</button>
+                            <button type="button" class="t-btn" data-action="h3">H3</button>
+                            <button type="button" class="t-btn" data-action="h4">H4</button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="bold"><b>B</b></button>
+                            <button type="button" class="t-btn" data-action="italic"><i>I</i></button>
+                            <button type="button" class="t-btn" data-action="strike"><s>S</s></button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="code">&lt;&gt;</button>
+                            <button type="button" class="t-btn" data-action="codeblock">```</button>
+                            <button type="button" class="t-btn" data-action="quote">"</button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="ul">• 목록</button>
+                            <button type="button" class="t-btn" data-action="ol">1. 목록</button>
+                            <button type="button" class="t-btn" data-action="hr">—</button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="link">🔗 링크</button>
+                        </div>
+                        <textarea id="editor" placeholder="마크다운으로 내용을 입력하세요..."></textarea>
+                    </div>
+                </div>
+                <div id="preview-mode" class="tab-pane">
+                    <div id="preview" class="markdown-body"></div>
+                </div>
+                <input type="text" id="tag-input" class="ug-input-underlined" placeholder="태그 입력 후 Enter (최대 5개)">
+                <div id="tag-list" class="tag-container"></div>
+            </div>
+        </main>
 
-    async function loadExistingPost(postId) {
-        submitBtn.disabled = true;
-        try {
-            const { data: post, error } = await supabase.from('posts').select('*').eq('id', postId).single();
-            if (error || !post) throw new Error('게시물을 불러오지 못했어요.');
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user || user.id !== post.user_id) {
-                alert('수정 권한이 없습니다.');
-                window.location.href = '../index.html';
-                return;
-            }
-            postTitle.value = post.title || '';
-            editor.value = post.content || '';
-            if (post.image_urls && post.image_urls.length > 0) {
-                existingImageUrls = post.image_urls;
-            } else if (post.image_url) {
-                existingImageUrls = [post.image_url];
-            }
-            if (existingImageUrls.length > 0) renderThumbs();
-            (post.tags || []).forEach(val => addTag(val));
-        } catch (err) {
-            alert(err.message);
-            window.location.href = '../index.html';
-        } finally {
-            submitBtn.disabled = false;
-        }
-    }
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetId = tab.dataset.tab;
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            tabPanes.forEach(pane => {
-                pane.classList.remove('active');
-                if (pane.id === targetId) pane.classList.add('active');
-            });
-            if (targetId === 'preview-mode') renderMarkdown();
-        });
-    });
-
-    function renderMarkdown() {
-        if (typeof marked !== 'undefined') {
-            preview.innerHTML = marked.parse(editor.value || '*내용이 비어있습니다.*');
-        }
-    }
-
-    window.insertMarkdown = (prefix, suffix = '') => {
-        const start = editor.selectionStart;
-        const end = editor.selectionEnd;
-        const text = editor.value;
-        const selected = text.substring(start, end);
-        const before = text.substring(0, start);
-        const after = text.substring(end);
-        let newValue, newPos;
-        if (suffix === '') {
-            const lines = selected ? selected.split('\n').map(l => prefix + l).join('\n') : prefix;
-            newValue = before + lines + after;
-            newPos = start + lines.length;
-        } else {
-            const wrapped = prefix + selected + suffix;
-            newValue = before + wrapped + after;
-            newPos = selected ? start + wrapped.length : start + prefix.length;
-        }
-        editor.value = newValue;
-        editor.setSelectionRange(newPos, newPos);
-        editor.focus();
-        isDirty = true;
-    };
-
-    document.querySelectorAll('.t-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const action = btn.dataset.action;
-            switch (action) {
-                case 'h1': insertMarkdown('# '); break;
-                case 'h2': insertMarkdown('## '); break;
-                case 'h3': insertMarkdown('### '); break;
-                case 'h4': insertMarkdown('#### '); break;
-                case 'bold': insertMarkdown('**', '**'); break;
-                case 'italic': insertMarkdown('*', '*'); break;
-                case 'strike': insertMarkdown('~~', '~~'); break;
-                case 'code': insertMarkdown('`', '`'); break;
-                case 'codeblock': insertMarkdown('```\n', '\n```'); break;
-                case 'quote': insertMarkdown('> '); break;
-                case 'hr': insertMarkdown('\n---\n'); break;
-                case 'ul': insertMarkdown('- '); break;
-                case 'ol': insertMarkdown('1. '); break;
-                case 'link':
-                    const url = prompt('URL을 입력하세요:', 'https://');
-                    if (url) insertMarkdown('[', `](${url})`);
-                    break;
-            }
-        });
-    });
-
-    imageInput.addEventListener('change', (e) => {
-        const files = Array.from(e.target.files);
-        const totalCount = existingImageUrls.length + newImageFiles.length + files.length;
-        if (totalCount > 10) {
-            alert(`사진은 최대 10장까지 첨부 가능합니다. (현재 ${existingImageUrls.length + newImageFiles.length}장)`);
-            imageInput.value = '';
-            return;
-        }
-        const oversized = files.filter(f => f.size > 10 * 1024 * 1024);
-        if (oversized.length > 0) {
-            alert('10MB 이하의 이미지만 가능합니다.');
-            imageInput.value = '';
-            return;
-        }
-        newImageFiles = [...newImageFiles, ...files];
-        renderThumbs();
-        imageInput.value = '';
-        isDirty = true;
-    });
-
-    function renderThumbs() {
-        imageThumbs.innerHTML = '';
-        existingImageUrls.forEach((url, i) => {
-            const wrap = document.createElement('div');
-            wrap.className = 'thumb-wrap';
-            wrap.innerHTML = `
-                <img src="${url}" class="thumb-img">
-                <button class="thumb-remove" data-type="existing" data-index="${i}">
-                    <span class="material-symbols-rounded">close</span>
-                </button>
-                <div class="thumb-order">${i + 1}</div>
-            `;
-            imageThumbs.appendChild(wrap);
-        });
-        newImageFiles.forEach((file, i) => {
-            const url = URL.createObjectURL(file);
-            const globalIndex = existingImageUrls.length + i;
-            const wrap = document.createElement('div');
-            wrap.className = 'thumb-wrap';
-            wrap.innerHTML = `
-                <img src="${url}" class="thumb-img">
-                <button class="thumb-remove" data-type="new" data-index="${i}">
-                    <span class="material-symbols-rounded">close</span>
-                </button>
-                <div class="thumb-order">${globalIndex + 1}</div>
-            `;
-            imageThumbs.appendChild(wrap);
-        });
-        imageThumbs.querySelectorAll('.thumb-remove').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const type = btn.dataset.type;
-                const idx = parseInt(btn.dataset.index);
-                if (type === 'existing') existingImageUrls.splice(idx, 1);
-                else newImageFiles.splice(idx, 1);
-                renderThumbs();
-                if (existingImageUrls.length + newImageFiles.length === 0) {
-                    multiPreview.style.display = 'none';
-                    uploadLabelBtn.style.display = 'flex';
-                }
-            });
-        });
-        const total = existingImageUrls.length + newImageFiles.length;
-        if (total > 0) {
-            multiPreview.style.display = 'flex';
-            uploadLabelBtn.style.display = 'none';
-        }
-    }
-
-    function addTag(val) {
-        val = val.trim().replace(/#/g, '');
-        if (!val || tags.includes(val) || tags.length >= 5) return;
-        tags.push(val);
-        const badge = document.createElement('div');
-        badge.className = 'tag-badge';
-        badge.innerHTML = `#${val} <span style="cursor:pointer;margin-left:6px;font-weight:bold;">×</span>`;
-        badge.querySelector('span').addEventListener('click', () => {
-            tags = tags.filter(t => t !== val);
-            badge.remove();
-        });
-        tagList.appendChild(badge);
-    }
-
-    tagInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (tags.length >= 5) { alert('태그는 최대 5개까지입니다.'); return; }
-            addTag(tagInput.value.trim());
-            tagInput.value = '';
-            isDirty = true;
-        }
-    });
-
-    submitBtn.addEventListener('click', async () => {
-        const title = postTitle.value.trim();
-        const content = editor.value.trim();
-        if (!title || !content) { alert('제목과 내용을 모두 작성해주세요.'); return; }
-
-        submitBtn.disabled = true;
-        submitBtn.innerText = editPostId ? '수정 중...' : '가든에 씨앗 심는 중...';
-
-        try {
-            const { data: { user }, error: userError } = await supabase.auth.getUser();
-            if (userError || !user) throw new Error('로그인이 필요합니다.');
-
-            const uploadedUrls = [];
-            for (const file of newImageFiles) {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage
-                    .from('post-images')
-                    .upload(fileName, file, { cacheControl: '3600', upsert: false });
-                if (uploadError) throw uploadError;
-                const { data: publicUrlData } = supabase.storage.from('post-images').getPublicUrl(fileName);
-                uploadedUrls.push(publicUrlData.publicUrl);
-            }
-
-            const finalImageUrls = [...existingImageUrls, ...uploadedUrls];
-            const finalImageUrl = finalImageUrls[0] || null;
-
-            if (editPostId) {
-                const { error: updateError } = await supabase
-                    .from('posts')
-                    .update({ title, content, image_url: finalImageUrl, image_urls: finalImageUrls, tags, updated_at: new Date() })
-                    .eq('id', editPostId);
-                if (updateError) throw updateError;
-                isDirty = false;
-                alert('게시물이 수정됐어요!');
-            } else {
-                const { error: insertError } = await supabase
-                    .from('posts')
-                    .insert([{ user_id: user.id, title, content, image_url: finalImageUrl, image_urls: finalImageUrls, tags, created_at: new Date() }]);
-                if (insertError) throw insertError;
-
-                const { data: followers } = await supabase.from('follows').select('follower_id').eq('following_id', user.id);
-                if (followers && followers.length > 0) {
-                    const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
-                    const notis = followers.map(f => ({
-                        user_id: f.follower_id, type: 'post', actor_id: user.id,
-                        message: `@${myProfile?.username || '누군가'}님이 새 게시물을 올렸어요: "${title.slice(0, 30)}${title.length > 30 ? '...' : ''}"`,
-                        post_preview: title
-                    }));
-                    await supabase.from('notifications').insert(notis);
-                }
-                isDirty = false;
-                alert('성공적으로 게시됐어요!');
-            }
-            window.location.href = '../index.html';
-        } catch (err) {
-            console.error('Submission Error:', err);
-            alert('오류 발생: ' + err.message);
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerText = editPostId ? '수정 완료' : '씨앗 심기';
-        }
-    });
-
-    editor.addEventListener('input', () => { isDirty = true; });
-    window.addEventListener('beforeunload', (e) => {
-        if (isDirty) { e.preventDefault(); e.returnValue = ''; }
-    });
-});
+        <aside class="ug-right-panel">
+            <div id="auth-section" class="auth-status-card">
+                <div class="loader-small">연결 중...</div>
+            </div>
+            <div class="right-panel-content">
+                <section class="trending-topics">
+                    <h2>작성 가이드</h2>
+                    <ul style="color:var(--text-2);font-size:0.85rem;padding-left:15px;line-height:1.8;">
+                        <li>사진은 최대 10장까지 첨부 가능합니다.</li>
+                        <li>마크다운 문법을 완벽히 지원합니다.</li>
+                        <li>태그는 최대 5개까지 권장합니다.</li>
+                    </ul>
+                </section>
+            </div>
+        </aside>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/auth-handler.js"></script>
+    <script src="./write-logic.js"></script>
+</body>
+</html>
