@@ -1,101 +1,114 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UnderGarden | Deep Web Lounge</title>
-
+    <title>UnderGarden | Plant Seed</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
-
-    <link rel="stylesheet" href="./css/global.css">
-    <link rel="stylesheet" href="./css/main-style.css">
-    <link rel="stylesheet" href="./css/gif-additions.css"> 
-
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/main-style.css">
+    <link rel="stylesheet" href="./write-style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="ug-layout">
-
         <nav class="ug-side-nav">
             <div class="nav-header">
-                <a href="./index.html" class="logo">UnderGarden</a>
+                <a href="../index.html" class="logo">UnderGarden</a>
             </div>
-
             <ul class="nav-links">
-                <li>
-                    <a href="./index.html" class="active">
-                        <span class="material-symbols-rounded">home</span>홈
-                    </a>
-                </li>
-                <li>
-                    <a href="./messages/index.html">
-                        <span class="material-symbols-rounded">chat_bubble</span>메시지
-                    </a>
-                </li>
-                <li>
-                    <a href="./search.html">
-                        <span class="material-symbols-rounded">search</span>검색
-                    </a>
-                </li>
-                <li>
-                    <a href="./notifications.html" class="noti-link">
-                        <span class="material-symbols-rounded">notifications</span>알림
-                        <div id="nav-noti-badge" class="badge" style="display:none">0</div>
-                    </a>
-                </li>
-                <li>
-                    <a href="./pam.html">
-                        <span class="material-symbols-rounded">search</span>팸
-                    </a>
-                </li>
-                <li>
-                <li>
-                    <a href="./write/index.html" class="write-link">
-                        <span class="material-symbols-rounded">add_circle</span>게시하기
-                    </a>
-                </li>
-                
+                <li><a href="../index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
+                <li><a href="../messages/index.html"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
+                <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
+                <li><a href="../notifications.html"><span class="material-symbols-rounded">notifications</span>알림</a></li>
+                <li><a href="../pam.html"><span class="material-symbols-rounded">search</span>팸</a></li>
+                <li><a href="./index.html" class="active write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
             </ul>
-
             <div class="nav-footer">
-                <button id="logout-btn">
-                    <span class="material-symbols-rounded">logout</span>로그아웃
-                </button>
+                <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
             </div>
         </nav>
-        <main class="ug-main-feed">
-            <header class="main-header">
-                <h1>FEED</h1>
-                <div class="feed-tabs">
-                    <button class="tab-item active">최신</button>
-                    <button class="tab-item">팔로잉</button>
-                </div>
-            </header>
 
-            <div id="main-feed" class="feed-scroll-area">
-                <div class="feed-loader">
-                    <span class="material-symbols-rounded animation-spin">sync</span>
-                    가든 연결 중입니다...
+        <main class="ug-main-feed">
+            <header class="main-header" style="display:flex;justify-content:space-between;align-items:center;padding:24px 30px;">
+                <h1>PLANT NEW SEED</h1>
+                <button id="submit-post" class="write-submit-btn">씨앗 심기</button>
+            </header>
+            <div class="write-container">
+                <input type="text" id="post-title" class="ug-input-underlined" placeholder="제목을 입력하세요...">
+
+                <!-- 다중 이미지 업로드 -->
+                <div class="image-upload-wrapper">
+                    <label for="post-image-file" class="image-upload-label" id="upload-label-btn">
+                        <span class="material-symbols-rounded">add_photo_alternate</span>
+                        <span>사진 첨부 (최대 10장)</span>
+                    </label>
+                    <input type="file" id="post-image-file" accept="image/*" multiple style="display:none;">
+                    <div id="multi-image-preview" class="multi-image-preview" style="display:none;">
+                        <div id="image-thumbs" class="image-thumbs"></div>
+                        <label for="post-image-file" class="add-more-btn">
+                            <span class="material-symbols-rounded">add_photo_alternate</span>
+                            <span>사진 추가</span>
+                        </label>
+                    </div>
                 </div>
+
+                <div class="editor-tabs">
+                    <button class="tab-item active" data-tab="edit-mode">원래 (Write)</button>
+                    <button class="tab-item" data-tab="preview-mode">미리보기 (Preview)</button>
+                </div>
+                <div id="edit-mode" class="tab-pane active">
+                    <div class="md-editor-container">
+                        <div class="md-toolbar">
+                            <button type="button" class="t-btn" data-action="h1">H1</button>
+                            <button type="button" class="t-btn" data-action="h2">H2</button>
+                            <button type="button" class="t-btn" data-action="h3">H3</button>
+                            <button type="button" class="t-btn" data-action="h4">H4</button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="bold"><b>B</b></button>
+                            <button type="button" class="t-btn" data-action="italic"><i>I</i></button>
+                            <button type="button" class="t-btn" data-action="strike"><s>S</s></button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="code">&lt;&gt;</button>
+                            <button type="button" class="t-btn" data-action="codeblock">```</button>
+                            <button type="button" class="t-btn" data-action="quote">"</button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="ul">• 목록</button>
+                            <button type="button" class="t-btn" data-action="ol">1. 목록</button>
+                            <button type="button" class="t-btn" data-action="hr">—</button>
+                            <div class="toolbar-separator"></div>
+                            <button type="button" class="t-btn" data-action="link">🔗 링크</button>
+                        </div>
+                        <textarea id="editor" placeholder="마크다운으로 내용을 입력하세요..."></textarea>
+                    </div>
+                </div>
+                <div id="preview-mode" class="tab-pane">
+                    <div id="preview" class="markdown-body"></div>
+                </div>
+                <input type="text" id="tag-input" class="ug-input-underlined" placeholder="태그 입력 후 Enter (최대 5개)">
+                <div id="tag-list" class="tag-container"></div>
             </div>
         </main>
+
         <aside class="ug-right-panel">
             <div id="auth-section" class="auth-status-card">
                 <div class="loader-small">연결 중...</div>
             </div>
             <div class="right-panel-content">
                 <section class="trending-topics">
-                    <h2>인기 검색어</h2>
-                    <ul id="trending-queries">
-                        <div class="skeleton-text">분석 중...</div>
+                    <h2>작성 가이드</h2>
+                    <ul style="color:var(--text-2);font-size:0.85rem;padding-left:15px;line-height:1.8;">
+                        <li>사진은 최대 10장까지 첨부 가능합니다.</li>
+                        <li>마크다운 문법을 완벽히 지원합니다.</li>
+                        <li>태그는 최대 5개까지 권장합니다.</li>
                     </ul>
                 </section>
             </div>
         </aside>
     </div>
-    <script src="./js/supabase-config.js"></script>
-    <script src="./js/auth-handler.js"></script>
-    <script src="./js/main-logic.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="../js/supabase-config.js"></script>
+    <script src="../js/auth-handler.js"></script>
+    <script src="./write-logic.js"></script>
 </body>
 </html>
