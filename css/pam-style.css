@@ -1,9 +1,902 @@
+/* css/pam-style.css — 팸 전용 스타일 */
 
-.sex {
-  font-size: 20px;
-  text-align: center;
-  border-radius: 15px; /* Use px, %, or em */
-  background-color: #73AD21;
-  width: 200px;
-  height: 150px;
-     }
+/* ─────────────────────────────────────────
+   팸 메인 레이아웃
+───────────────────────────────────────── */
+.pam-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background-color: var(--bg-0);
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ─── 광고 배너 ─── */
+.pam-banner {
+    background: linear-gradient(135deg, rgba(157,78,221,0.12) 0%, rgba(199,125,255,0.06) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    flex-shrink: 0;
+}
+.pam-banner-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.pam-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.pam-banner-icon {
+    font-size: 1.4rem;
+    color: var(--primary);
+    animation: florist-spin 4s ease-in-out infinite;
+}
+@keyframes florist-spin {
+    0%, 100% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(15deg) scale(1.1); }
+}
+.pam-banner-label {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: 0.1em;
+}
+.pam-banner-desc {
+    font-size: 0.78rem;
+    color: var(--text-3);
+}
+
+/* ─── 컨트롤 영역 (탭+검색+필터) ─── */
+.pam-controls {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: rgba(5,5,5,0.88);
+    backdrop-filter: blur(20px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* 탭 */
+.pam-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+.pam-tab {
+    padding: 7px 16px;
+    border-radius: 20px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-2);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.pam-tab:hover {
+    color: var(--text-0);
+    background: var(--bg-2);
+}
+.pam-tab.active {
+    color: var(--primary);
+    background: var(--primary-alpha);
+    border-color: rgba(157,78,221,0.3);
+}
+.tab-spark {
+    font-size: 0.75rem;
+}
+
+/* 검색 + 필터 + 버튼 한 줄 */
+.pam-search-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 검색창 */
+.pam-search-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    transition: border-color 0.2s;
+}
+.pam-search-wrap:focus-within { border-color: var(--primary); }
+.pam-search-wrap .material-symbols-rounded { font-size: 18px; color: var(--text-3); }
+.pam-search-wrap input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-0);
+    font-size: 0.88rem;
+    font-family: inherit;
+}
+.pam-search-wrap input::placeholder { color: var(--text-3); }
+
+/* 필터 */
+.pam-filters {
+    display: flex;
+    gap: 6px;
+}
+.filter-group {
+    position: relative;
+}
+.filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-2);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    white-space: nowrap;
+}
+.filter-btn:hover, .filter-btn.active-filter {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.filter-btn .material-symbols-rounded { font-size: 16px; }
+.filter-arrow { font-size: 16px !important; transition: transform 0.2s; }
+.filter-group.open .filter-arrow { transform: rotate(180deg); }
+
+.filter-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 130px;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    display: none;
+}
+.filter-group.open .filter-dropdown { display: block; }
+.filter-option {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-1);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.filter-option:hover { background: var(--bg-2); }
+.filter-option.active { color: var(--primary); font-weight: 700; background: var(--primary-alpha); }
+
+/* 방 만들기 버튼 */
+.pam-create-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--primary);
+    color: white;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: var(--transition-fast);
+}
+.pam-create-btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+.pam-create-btn .material-symbols-rounded { font-size: 18px; }
+
+/* ─── 팸 그리드 ─── */
+.pam-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+.pam-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    max-width: 100%;
+}
+/* 최대 3열 제한 */
+@media (min-width: 900px) {
+    .pam-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.pam-loader {
+    grid-column: 1/-1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 60px;
+    color: var(--text-3);
+    font-size: 0.9rem;
+}
+.pam-empty {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px;
+    color: var(--text-3);
+}
+
+/* ─── 팸 카드 (2:3 비율) ─── */
+.pam-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+.pam-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(157,78,221,0.5);
+    box-shadow: 0 8px 32px rgba(157,78,221,0.15);
+}
+
+/* 카드 상단: 사진 (전체의 60%) */
+.pam-card-img-wrap {
+    position: relative;
+    aspect-ratio: 2/1.5;
+    overflow: hidden;
+    background: var(--bg-2);
+    flex-shrink: 0;
+}
+.pam-card-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s;
+}
+.pam-card:hover .pam-card-img-wrap img { transform: scale(1.05); }
+.pam-card-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--text-3);
+    font-size: 0.78rem;
+}
+.pam-card-img-placeholder .material-symbols-rounded { font-size: 32px; }
+.pam-card-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.6) 100%);
+}
+.pam-card-badges {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.pam-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(157,78,221,0.8);
+    color: white;
+    backdrop-filter: blur(4px);
+}
+
+/* 카드 하단: 정보 (전체의 40%) */
+.pam-card-body {
+    padding: 12px 14px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.pam-card-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-0);
+    letter-spacing: -0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pam-card-desc {
+    font-size: 0.78rem;
+    color: var(--text-2);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+}
+.pam-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+}
+.pam-card-members {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--text-3);
+    font-weight: 600;
+}
+.pam-card-members .material-symbols-rounded { font-size: 14px; }
+.pam-card-lock {
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+}
+.pam-card-lock .material-symbols-rounded { font-size: 15px; }
+
+/* ─── 팸 상세 모달 ─── */
+.pam-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(6px);
+    animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.pam-modal {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    width: 460px;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}
+.pam-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 10;
+    width: 34px;
+    height: 34px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+}
+.pam-modal { position: relative; }
+
+.pam-modal-img-wrap {
+    position: relative;
+    aspect-ratio: 16/7;
+    background: var(--bg-2);
+    flex-shrink: 0;
+}
+.pam-modal-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.pam-modal-img-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.7) 100%);
+}
+.pam-modal-badges {
+    position: absolute;
+    bottom: 12px;
+    left: 16px;
+    display: flex;
+    gap: 6px;
+}
+
+.pam-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+.pam-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+.pam-modal-header h2 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-0);
+    letter-spacing: -0.5px;
+}
+.pam-modal-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+    font-size: 0.82rem;
+    color: var(--text-3);
+    font-weight: 600;
+}
+.pam-modal-meta span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.pam-modal-meta .material-symbols-rounded { font-size: 15px; }
+
+.pam-modal-host {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.modal-host-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--primary);
+}
+.modal-host-label {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    font-weight: 600;
+}
+.modal-host-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-0);
+}
+
+.pam-modal-desc {
+    font-size: 0.9rem;
+    color: var(--text-2);
+    line-height: 1.7;
+    margin-bottom: 18px;
+}
+
+.modal-pw-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    transition: border-color 0.2s;
+}
+.modal-pw-wrap:focus-within { border-color: var(--primary); }
+.modal-pw-wrap .material-symbols-rounded { font-size: 18px; color: var(--text-3); }
+.modal-pw-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-0);
+    font-size: 0.92rem;
+    font-family: inherit;
+    letter-spacing: 0.2em;
+}
+
+.pam-join-btn {
+    width: 100%;
+    padding: 13px;
+    background: var(--primary);
+    color: white;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    border: none;
+}
+.pam-join-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.pam-join-btn.joined {
+    background: var(--bg-2);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+}
+.pam-join-btn .material-symbols-rounded { font-size: 20px; }
+
+/* ─── 토큰 카드 (우측 패널) ─── */
+.token-card {
+    background: linear-gradient(135deg, rgba(157,78,221,0.2) 0%, rgba(199,125,255,0.1) 100%);
+    border: 1px solid rgba(157,78,221,0.3);
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.token-icon {
+    font-size: 2rem;
+    animation: florist-spin 3s ease-in-out infinite;
+}
+.token-label {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+.token-amount {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--primary);
+}
+.token-unit {
+    font-size: 0.85rem;
+    color: var(--text-3);
+    font-weight: 600;
+}
+
+/* 인기 팸 목록 */
+.trending-pam-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.trending-pam-list li:hover { color: var(--primary); }
+.trending-pam-list li img {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.trending-pam-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.trending-pam-members {
+    font-size: 0.75rem;
+    color: var(--text-3);
+}
+
+/* ─────────────────────────────────────────
+   팸 만들기 페이지
+───────────────────────────────────────── */
+.pam-create-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg-0);
+}
+
+.pam-create-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,5,5,0.88);
+    backdrop-filter: blur(20px);
+    flex-shrink: 0;
+}
+.pam-create-header h1 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    flex: 1;
+}
+.back-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    color: var(--text-2);
+    transition: var(--transition-fast);
+}
+.back-btn:hover { background: var(--bg-2); color: var(--text-0); }
+
+.token-cost-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--primary-alpha);
+    border: 1px solid rgba(157,78,221,0.3);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+.token-flower { font-size: 1rem; }
+.my-token-display {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    font-weight: 500;
+    border-left: 1px solid rgba(157,78,221,0.3);
+    padding-left: 10px;
+    margin-left: 4px;
+}
+.my-token-display strong { color: var(--primary); }
+
+.pam-create-body {
+    flex: 1;
+    display: flex;
+    gap: 0;
+    overflow: hidden;
+}
+
+/* 왼쪽: 미리보기 */
+.pam-create-preview {
+    width: 280px;
+    min-width: 280px;
+    padding: 28px 20px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-1);
+    overflow-y: auto;
+}
+.preview-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    align-self: flex-start;
+}
+.preview-card {
+    width: 100%;
+    cursor: default;
+    pointer-events: none;
+}
+.preview-card:hover {
+    transform: none;
+}
+
+/* 오른쪽: 폼 */
+.pam-create-form {
+    flex: 1;
+    padding: 28px 32px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.form-section { display: flex; flex-direction: column; gap: 8px; }
+.form-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.required { color: var(--primary); }
+.form-input {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text-0);
+    font-size: 0.92rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.form-input:focus { border-color: var(--primary); }
+.form-textarea {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    color: var(--text-0);
+    font-size: 0.9rem;
+    font-family: inherit;
+    outline: none;
+    resize: none;
+    transition: border-color 0.2s;
+    line-height: 1.6;
+}
+.form-textarea:focus { border-color: var(--primary); }
+.form-select {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 12px;
+    color: var(--text-0);
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+.form-select:focus { border-color: var(--primary); }
+.input-counter {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    text-align: right;
+}
+
+/* 사진 + 설정 가로 배치 */
+.form-row {
+    display: flex;
+    gap: 16px;
+}
+.form-img-section { flex: 0 0 120px; }
+.form-tags-section { flex: 1; }
+
+.img-upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 120px;
+    height: 120px;
+    background: var(--bg-2);
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    color: var(--text-3);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.img-upload-label:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.img-upload-label .material-symbols-rounded { font-size: 28px; }
+.img-upload-label.has-img {
+    border-style: solid;
+    border-color: var(--primary);
+    padding: 0;
+    overflow: hidden;
+}
+.img-upload-label.has-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tag-selects {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 비번 토글 */
+.pw-label {
+    cursor: default;
+}
+.toggle-wrap {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+.pw-toggle-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 2px;
+    top: 2px;
+    background: var(--text-3);
+    border-radius: 50%;
+    transition: 0.2s;
+}
+.pw-toggle-input:checked + .toggle-slider {
+    background: var(--primary-alpha);
+    border-color: var(--primary);
+}
+.pw-toggle-input:checked + .toggle-slider::before {
+    background: var(--primary);
+    transform: translateX(18px);
+}
+.pw-input { letter-spacing: 0.3em; font-size: 1.1rem; }
+
+/* 제출 버튼 */
+.pam-submit-btn {
+    padding: 14px;
+    background: var(--primary);
+    color: white;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    border: none;
+    margin-top: 4px;
+}
+.pam-submit-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.pam-submit-btn:disabled { background: var(--bg-2); color: var(--text-3); cursor: not-allowed; transform: none; }
+.submit-notice {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* 메시지 nav 뱃지 위치 */
+.msg-nav-link { position: relative; }
