@@ -11,197 +11,266 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div class="ug-layout">
+<div class="ug-layout">
 
-        <!-- 좌측 사이드바 (기존 그대로) -->
-        <nav class="ug-side-nav">
-            <div class="nav-header">
-                <a href="../index.html" class="logo">UnderGarden</a>
+    <!-- 글로벌 사이드 nav -->
+    <nav class="ug-side-nav">
+        <div class="nav-header">
+            <a href="../index.html" class="logo">UnderGarden</a>
+        </div>
+        <ul class="nav-links">
+            <li><a href="../index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
+            <li>
+                <a href="./index.html" class="active msg-nav-link">
+                    <span class="material-symbols-rounded">chat_bubble</span>메시지
+                    <div id="nav-msg-badge" class="badge" style="display:none">0</div>
+                </a>
+            </li>
+            <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
+            <li>
+                <a href="../notifications.html" class="noti-link">
+                    <span class="material-symbols-rounded">notifications</span>알림
+                    <div id="nav-noti-badge" class="badge" style="display:none">0</div>
+                </a>
+            </li>
+            <li><a href="../pam.html"><span class="material-symbols-rounded">groups</span>팸</a></li>
+            <li><a href="../write/index.html" class="write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
+        </ul>
+        <div class="nav-footer">
+            <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
+        </div>
+    </nav>
+
+    <!-- 메시지 레이아웃 -->
+    <div class="msg-layout">
+
+        <!-- ① 서버(방) 아이콘 리스트 (디스코드 맨 왼쪽) -->
+        <div class="msg-server-list">
+            <div class="server-list-top">
+                <!-- DM 홈 버튼 -->
+                <button class="server-icon server-home active" id="server-home-btn" title="다이렉트 메시지">
+                    <span class="material-symbols-rounded">forum</span>
+                </button>
+                <div class="server-divider"></div>
+                <!-- 방 아이콘들 (동적 생성) -->
+                <div id="server-icons"></div>
             </div>
-            <ul class="nav-links">
-                <li><a href="../index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
-                <li><a href="./index.html" class="active"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
-                <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
-                <li><a href="../notifications.html"><span class="material-symbols-rounded">notifications</span>알림</a></li>
-                <li><a href="../pam.html"><span class="material-symbols-rounded">search</span>팸</a></li>
-                <li><a href="../write/index.html" class="write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
-            </ul>
-            <div class="nav-footer">
-                <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
+            <div class="server-list-bottom">
+                <button class="server-icon server-add" id="new-room-btn" title="새 채팅방 만들기">
+                    <span class="material-symbols-rounded">add</span>
+                </button>
             </div>
-        </nav>
+        </div>
 
-        <!-- 메시지 영역 (디스코드 스타일: 채널 목록 + 채팅창) -->
-        <div class="msg-layout">
-
-            <!-- 서버/채널 사이드바 (디스코드의 채널 목록) -->
-            <div class="msg-sidebar">
+        <!-- ② 채널 사이드바 -->
+        <div class="msg-sidebar">
+            <!-- DM 뷰 -->
+            <div id="dm-sidebar" class="sidebar-view active">
                 <div class="msg-sidebar-header">
-                    <h2>메시지</h2>
-                    <button class="icon-btn" id="new-room-btn" title="새 방 만들기">
-                        <span class="material-symbols-rounded">add</span>
+                    <h2>다이렉트 메시지</h2>
+                    <button class="icon-btn" id="new-dm-btn" title="새 DM">
+                        <span class="material-symbols-rounded">edit_square</span>
                     </button>
                 </div>
-
-                <!-- DM 검색 -->
                 <div class="msg-search-wrap">
                     <span class="material-symbols-rounded search-icon">search</span>
-                    <input type="text" id="dm-search" placeholder="대화 또는 사람 검색" autocomplete="off">
+                    <input type="text" id="dm-search" placeholder="대화 검색" autocomplete="off">
                 </div>
+                <div class="channel-section-label"><span>다이렉트 메시지</span></div>
+                <ul id="dm-list" class="channel-list">
+                    <li class="channel-loading"><span class="material-symbols-rounded animation-spin">sync</span></li>
+                </ul>
+            </div>
 
-                <!-- DM 목록 -->
-                <div class="msg-channel-section">
-                    <div class="channel-section-label">
-                        <span>다이렉트 메시지</span>
+            <!-- 방(서버) 뷰 -->
+            <div id="room-sidebar" class="sidebar-view" style="display:none;">
+                <div class="room-sidebar-header">
+                    <div class="room-header-info">
+                        <img id="room-sidebar-img" src="" alt="" class="room-sidebar-img">
+                        <span id="room-sidebar-name" class="room-sidebar-name"></span>
                     </div>
-                    <ul id="dm-list" class="channel-list">
-                        <li class="channel-loading"><span class="material-symbols-rounded animation-spin">sync</span></li>
-                    </ul>
-                </div>
-
-                <!-- 채팅방 목록 -->
-                <div class="msg-channel-section">
-                    <div class="channel-section-label">
-                        <span>채팅방</span>
-                        <button class="add-channel-btn" id="new-room-btn-2" title="방 만들기">
-                            <span class="material-symbols-rounded">add</span>
-                        </button>
-                    </div>
-                    <ul id="room-list" class="channel-list">
-                        <li class="channel-loading"><span class="material-symbols-rounded animation-spin">sync</span></li>
-                    </ul>
-                </div>
-
-                <!-- 하단 유저 정보 -->
-                <div class="msg-user-bar">
-                    <img id="my-avatar" src="" alt="me" class="msg-user-avatar">
-                    <div class="msg-user-info">
-                        <div id="my-username" class="msg-username">로딩중...</div>
-                        <div class="msg-user-status">
-                            <span class="status-dot online"></span>온라인
-                        </div>
-                    </div>
-                    <button class="icon-btn" title="설정">
+                    <button class="icon-btn" id="room-settings-btn" title="방 설정" style="display:none;">
                         <span class="material-symbols-rounded">settings</span>
                     </button>
                 </div>
-            </div>
-
-            <!-- 채팅 메인 영역 -->
-            <div class="msg-chat-area" id="chat-area">
-                <!-- 기본: 빈 상태 -->
-                <div class="chat-welcome" id="chat-welcome">
-                    <span class="material-symbols-rounded welcome-icon">chat_bubble</span>
-                    <h2>메시지를 시작하세요</h2>
-                    <p>좌측에서 대화를 선택하거나<br>새 채팅을 시작해보세요</p>
-                    <button class="btn-primary" id="start-chat-btn">
-                        <span class="material-symbols-rounded">add</span> 새 메시지
+                <div class="channel-section-label">
+                    <span>채팅 채널</span>
+                    <button class="add-channel-btn" id="add-channel-btn" style="display:none;" title="채널 추가">
+                        <span class="material-symbols-rounded">add</span>
                     </button>
                 </div>
-
-                <!-- 채팅창 (숨겨져 있다가 방 선택 시 표시) -->
-                <div class="chat-room" id="chat-room" style="display:none;">
-                    <!-- 채팅방 헤더 -->
-                    <div class="chat-header">
-                        <div class="chat-header-info">
-                            <img id="chat-room-avatar" src="" alt="" class="chat-room-avatar">
-                            <div>
-                                <div id="chat-room-name" class="chat-room-name"></div>
-                                <div id="chat-room-sub" class="chat-room-sub"></div>
-                            </div>
-                        </div>
-                        <div class="chat-header-actions">
-                            <button class="icon-btn" id="members-btn" title="멤버 보기">
-                                <span class="material-symbols-rounded">group</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 메시지 목록 -->
-                    <div class="chat-messages" id="chat-messages">
-                        <div class="messages-loader">
-                            <span class="material-symbols-rounded animation-spin">sync</span>
-                        </div>
-                    </div>
-
-                    <!-- 입력창 -->
-                    <div class="chat-input-area">
-                        <div class="chat-input-wrap">
-                            <button class="icon-btn attach-btn" title="파일 첨부">
-                                <span class="material-symbols-rounded">add_circle</span>
-                            </button>
-                            <textarea id="msg-input" placeholder="" rows="1"></textarea>
-                            <button class="icon-btn emoji-btn" title="이모지">
-                                <span class="material-symbols-rounded">emoji_emotions</span>
-                            </button>
-                            <button class="send-btn" id="send-btn">
-                                <span class="material-symbols-rounded">send</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ul id="channel-list" class="channel-list">
+                    <li class="channel-loading"><span class="material-symbols-rounded animation-spin">sync</span></li>
+                </ul>
             </div>
 
-            <!-- 멤버 패널 (디스코드의 우측 멤버 목록) -->
-            <div class="msg-members-panel" id="members-panel" style="display:none;">
-                <div class="members-panel-header">
-                    <h3>멤버</h3>
+            <!-- 하단 유저 바 -->
+            <div class="msg-user-bar">
+                <img id="my-avatar" src="" alt="me" class="msg-user-avatar">
+                <div class="msg-user-info">
+                    <div id="my-username" class="msg-username">로딩중...</div>
+                    <div class="msg-user-status">
+                        <span class="status-dot online"></span>온라인
+                    </div>
                 </div>
-                <ul id="members-list" class="members-list"></ul>
             </div>
         </div>
-    </div>
 
-    <!-- 새 방 만들기 모달 -->
-    <div class="modal-overlay" id="create-room-modal" style="display:none;">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>새 채팅방 만들기</h3>
-                <button class="icon-btn" id="close-room-modal">
-                    <span class="material-symbols-rounded">close</span>
+        <!-- ③ 채팅 메인 -->
+        <div class="msg-chat-area" id="chat-area">
+            <div class="chat-welcome" id="chat-welcome">
+                <span class="material-symbols-rounded welcome-icon">chat_bubble</span>
+                <h2>메시지를 시작하세요</h2>
+                <p>좌측에서 대화를 선택하거나<br>새 채팅을 시작해보세요</p>
+                <button class="btn-primary" id="start-chat-btn">
+                    <span class="material-symbols-rounded">add</span> 새 메시지
                 </button>
             </div>
-            <div class="modal-body">
-                <label class="modal-label">방 이름</label>
-                <input type="text" id="room-name-input" placeholder="예: 자유채팅, 게임방..." class="modal-input" maxlength="30">
 
-                <label class="modal-label" style="margin-top:20px;">멤버 초대 (팔로우한 사람)</label>
-                <div class="modal-search-wrap">
-                    <span class="material-symbols-rounded search-icon">search</span>
-                    <input type="text" id="invite-search" placeholder="사용자 검색..." class="modal-input-inline">
+            <div class="chat-room" id="chat-room" style="display:none;">
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <img id="chat-room-avatar" src="" alt="" class="chat-room-avatar" style="display:none;">
+                        <span class="chat-channel-hash" id="chat-channel-hash" style="display:none;">#</span>
+                        <div>
+                            <div id="chat-room-name" class="chat-room-name"></div>
+                            <div id="chat-room-sub" class="chat-room-sub"></div>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="icon-btn" id="members-btn" title="멤버 보기">
+                            <span class="material-symbols-rounded">group</span>
+                        </button>
+                    </div>
                 </div>
-                <ul id="invite-list" class="invite-list"></ul>
 
-                <div class="selected-members" id="selected-members"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="cancel-room-modal">취소</button>
-                <button class="btn-primary" id="confirm-create-room">방 만들기</button>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="messages-loader">
+                        <span class="material-symbols-rounded animation-spin">sync</span>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="chat-input-wrap">
+                        <button class="icon-btn attach-btn">
+                            <span class="material-symbols-rounded">add_circle</span>
+                        </button>
+                        <textarea id="msg-input" placeholder="" rows="1"></textarea>
+                        <button class="icon-btn emoji-btn">
+                            <span class="material-symbols-rounded">emoji_emotions</span>
+                        </button>
+                        <button class="send-btn" id="send-btn">
+                            <span class="material-symbols-rounded">send</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- DM 시작 모달 -->
-    <div class="modal-overlay" id="new-dm-modal" style="display:none;">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>새 메시지</h3>
-                <button class="icon-btn" id="close-dm-modal">
-                    <span class="material-symbols-rounded">close</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <label class="modal-label">받는 사람 (팔로우한 사람)</label>
-                <div class="modal-search-wrap">
-                    <span class="material-symbols-rounded search-icon">search</span>
-                    <input type="text" id="dm-user-search" placeholder="사용자 검색..." class="modal-input-inline">
-                </div>
-                <ul id="dm-user-list" class="invite-list"></ul>
-            </div>
+        <!-- ④ 멤버 패널 -->
+        <div class="msg-members-panel" id="members-panel" style="display:none;">
+            <div class="members-panel-header"><h3>멤버</h3></div>
+            <ul id="members-list" class="members-list"></ul>
         </div>
     </div>
+</div>
 
-    <script src="../js/supabase-config.js"></script>
-    <script src="./msg-logic.js"></script>
+<!-- 새 채팅방 만들기 모달 -->
+<div class="modal-overlay" id="create-room-modal" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>새 채팅방 만들기</h3>
+            <button class="icon-btn" id="close-room-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="modal-body">
+            <!-- 방 사진 -->
+            <label class="modal-label">방 사진</label>
+            <label for="room-img-file" class="room-img-upload-label" id="room-img-label">
+                <span class="material-symbols-rounded">add_photo_alternate</span>
+                <span>사진 추가</span>
+            </label>
+            <input type="file" id="room-img-file" accept="image/*" style="display:none;">
+
+            <label class="modal-label" style="margin-top:16px;">방 이름 <span style="color:var(--primary)">*</span></label>
+            <input type="text" id="room-name-input" placeholder="예: 자유채팅, 게임방..." class="modal-input" maxlength="30">
+
+            <label class="modal-label" style="margin-top:16px;">멤버 초대 (팔로우한 사람)</label>
+            <div class="modal-search-wrap">
+                <span class="material-symbols-rounded search-icon">search</span>
+                <input type="text" id="invite-search" placeholder="사용자 검색..." class="modal-input-inline">
+            </div>
+            <ul id="invite-list" class="invite-list"></ul>
+            <div class="selected-members" id="selected-members"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancel-room-modal">취소</button>
+            <button class="btn-primary" id="confirm-create-room">방 만들기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 방 설정 모달 -->
+<div class="modal-overlay" id="room-settings-modal" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>방 설정</h3>
+            <button class="icon-btn" id="close-settings-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label">방 사진</label>
+            <label for="settings-img-file" class="room-img-upload-label" id="settings-img-label">
+                <span class="material-symbols-rounded">add_photo_alternate</span>
+                <span>사진 변경</span>
+            </label>
+            <input type="file" id="settings-img-file" accept="image/*" style="display:none;">
+
+            <label class="modal-label" style="margin-top:16px;">방 이름</label>
+            <input type="text" id="settings-name-input" class="modal-input" maxlength="30">
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancel-settings-modal">취소</button>
+            <button class="btn-primary" id="confirm-settings">저장</button>
+        </div>
+    </div>
+</div>
+
+<!-- 채널 추가 모달 -->
+<div class="modal-overlay" id="add-channel-modal" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>채널 추가</h3>
+            <button class="icon-btn" id="close-channel-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label">채널 이름</label>
+            <input type="text" id="channel-name-input" placeholder="예: 일반, 공지, 게임..." class="modal-input" maxlength="20">
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancel-channel-modal">취소</button>
+            <button class="btn-primary" id="confirm-add-channel">추가</button>
+        </div>
+    </div>
+</div>
+
+<!-- DM 새 메시지 모달 -->
+<div class="modal-overlay" id="new-dm-modal" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>새 메시지</h3>
+            <button class="icon-btn" id="close-dm-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label">받는 사람 (팔로우한 사람)</label>
+            <div class="modal-search-wrap">
+                <span class="material-symbols-rounded search-icon">search</span>
+                <input type="text" id="dm-user-search" placeholder="사용자 검색..." class="modal-input-inline">
+            </div>
+            <ul id="dm-user-list" class="invite-list"></ul>
+        </div>
+    </div>
+</div>
+
+<script src="../js/supabase-config.js"></script>
+<script src="./msg-logic.js"></script>
 </body>
 </html>
