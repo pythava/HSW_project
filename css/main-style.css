@@ -846,3 +846,24 @@
     backdrop-filter: blur(4px);
     z-index: 10;
 }
+
+/* ─────────────────────────────────────────
+   반응형 레이아웃
+───────────────────────────────────────── */
+@media (max-width: 1100px) {
+    .ug-right-panel { display: none; }
+}
+@media (max-width: 800px) {
+    .ug-side-nav {
+        width: clamp(56px, 8vw, 80px);
+        min-width: clamp(56px, 8vw, 80px);
+        padding: 16px 8px;
+    }
+    .ug-side-nav .logo { font-size: 1rem; padding-left: 4px; margin-bottom: 24px; }
+    .ug-side-nav .nav-links a span:not(.material-symbols-rounded),
+    .ug-side-nav .nav-footer button span:not(.material-symbols-rounded) { display: none; }
+    .ug-side-nav .nav-links a { padding: 10px; justify-content: center; gap: 0; }
+    .ug-side-nav .nav-links a.write-link { padding: 10px; }
+    .ug-side-nav .nav-footer button { padding: 10px; justify-content: center; }
+    .ug-main-feed { min-width: 0; }
+}
