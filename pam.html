@@ -1,101 +1,235 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UnderGarden | Deep Web Lounge</title>
-
+    <title>UnderGarden | 팸</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
-
     <link rel="stylesheet" href="./css/global.css">
     <link rel="stylesheet" href="./css/main-style.css">
-    <link rel="stylesheet" href="./css/gif-additions.css"> 
     <link rel="stylesheet" href="./css/pam-style.css">
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div class="ug-layout">
+<div class="ug-layout">
 
-        <nav class="ug-side-nav">
-            <div class="nav-header">
-                <a href="./index.html" class="logo">UnderGarden</a>
+    <nav class="ug-side-nav">
+        <div class="nav-header">
+            <a href="./index.html" class="logo">UnderGarden</a>
+        </div>
+        <ul class="nav-links">
+            <li><a href="./index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
+            <li>
+                <a href="./messages/index.html" class="msg-nav-link">
+                    <span class="material-symbols-rounded">chat_bubble</span>메시지
+                    <div id="nav-msg-badge" class="badge" style="display:none">0</div>
+                </a>
+            </li>
+            <li><a href="./search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
+            <li>
+                <a href="./notifications.html" class="noti-link">
+                    <span class="material-symbols-rounded">notifications</span>알림
+                    <div id="nav-noti-badge" class="badge" style="display:none">0</div>
+                </a>
+            </li>
+            <li><a href="./pam.html" class="active"><span class="material-symbols-rounded">groups</span>팸</a></li>
+            <li>
+                <a href="./write/index.html" class="write-link">
+                    <span class="material-symbols-rounded">add_circle</span>게시하기
+                </a>
+            </li>
+        </ul>
+        <div class="nav-footer">
+            <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
+        </div>
+    </nav>
+
+    <!-- 팸 메인 -->
+    <main class="pam-main">
+
+        <!-- 광고 배너 -->
+        <div class="pam-banner">
+            <div class="pam-banner-content">
+                <div class="pam-banner-left">
+                    <span class="pam-banner-icon">✦</span>
+                    <span class="pam-banner-label">PAM SPACE</span>
+                </div>
+                <p class="pam-banner-desc">이 공간은 광고 및 팸 소개에 활용됩니다</p>
             </div>
+        </div>
 
-            <ul class="nav-links">
-                <li>
-                    <a href="./index.html" class="active">
-                        <span class="material-symbols-rounded">home</span>홈
-                    </a>
-                </li>
-                <li>
-                    <a href="./messages/index.html">
-                        <span class="material-symbols-rounded">chat_bubble</span>메시지
-                    </a>
-                </li>
-                <li>
-                    <a href="./search.html">
-                        <span class="material-symbols-rounded">search</span>검색
-                    </a>
-                </li>
-                <li>
-                    <a href="./notifications.html" class="noti-link">
-                        <span class="material-symbols-rounded">notifications</span>알림
-                        <div id="nav-noti-badge" class="badge" style="display:none">0</div>
-                    </a>
-                </li>
-                <li>
-                    <a href="./pam.html">
-                        <span class="material-symbols-rounded">search</span>팸
-                    </a>
-                </li>
-                <li>
-                <li>
-                    <a href="./write/index.html" class="write-link">
-                        <span class="material-symbols-rounded">add_circle</span>게시하기
-                    </a>
-                </li>
-                
-            </ul>
-
-            <div class="nav-footer">
-                <button id="logout-btn">
-                    <span class="material-symbols-rounded">logout</span>로그아웃
+        <!-- 탭 + 검색 + 필터 + 방만들기 -->
+        <div class="pam-controls">
+            <div class="pam-tabs">
+                <button class="pam-tab active" data-tab="all">전체</button>
+                <button class="pam-tab" data-tab="mypam">
+                    MY PAM <span class="tab-spark">✦</span>
+                </button>
+                <button class="pam-tab" data-tab="hot">
+                    인기 <span class="tab-spark">🔥</span>
                 </button>
             </div>
-        </nav>
-        <main class="ug-main-feed">
-            <header class="main-header">
-                <h1>pam</h1>
-                <div class="feed-tabs">
-                    <button class="tab-item active">my pam</button>
-                    <button class="tab-item">인기</button>
+
+            <div class="pam-search-row">
+                <!-- 검색창 -->
+                <div class="pam-search-wrap">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="text" id="pam-search" placeholder="팸 이름, 지역, 특징으로 검색...">
                 </div>
-            </header>
-            <div class = "sex">
-                <p>저도 여기다가 팸 기능 만들고 싶은데 어떻게 하는지 모르겠어요 ㅠㅠ 알려주세요 은석이형</p>
-                <p>저도 이제 책 한권 읽어서 html 전공자이니 제가 직접 해볼게요 love 은석boy</p>
+
+                <!-- 필터들 -->
+                <div class="pam-filters">
+                    <div class="filter-group" id="filter-region">
+                        <button class="filter-btn" data-filter="region">
+                            <span class="material-symbols-rounded">location_on</span>
+                            <span id="filter-region-label">지역</span>
+                            <span class="material-symbols-rounded filter-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown" id="dropdown-region">
+                            <button class="filter-option active" data-value="">전체</button>
+                            <button class="filter-option" data-value="서울">서울</button>
+                            <button class="filter-option" data-value="경기">경기</button>
+                            <button class="filter-option" data-value="인천">인천</button>
+                            <button class="filter-option" data-value="부산">부산</button>
+                            <button class="filter-option" data-value="대구">대구</button>
+                            <button class="filter-option" data-value="광주">광주</button>
+                            <button class="filter-option" data-value="대전">대전</button>
+                            <button class="filter-option" data-value="울산">울산</button>
+                            <button class="filter-option" data-value="강원">강원</button>
+                            <button class="filter-option" data-value="충청">충청</button>
+                            <button class="filter-option" data-value="전라">전라</button>
+                            <button class="filter-option" data-value="경상">경상</button>
+                            <button class="filter-option" data-value="제주">제주</button>
+                            <button class="filter-option" data-value="온라인">온라인</button>
+                        </div>
+                    </div>
+
+                    <div class="filter-group" id="filter-age">
+                        <button class="filter-btn" data-filter="age">
+                            <span class="material-symbols-rounded">cake</span>
+                            <span id="filter-age-label">나이대</span>
+                            <span class="material-symbols-rounded filter-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown" id="dropdown-age">
+                            <button class="filter-option active" data-value="">전체</button>
+                            <button class="filter-option" data-value="10대">10대</button>
+                            <button class="filter-option" data-value="20대">20대</button>
+                            <button class="filter-option" data-value="30대">30대</button>
+                            <button class="filter-option" data-value="40대">40대</button>
+                            <button class="filter-option" data-value="상관없음">상관없음</button>
+                        </div>
+                    </div>
+
+                    <div class="filter-group" id="filter-gender">
+                        <button class="filter-btn" data-filter="gender">
+                            <span class="material-symbols-rounded">wc</span>
+                            <span id="filter-gender-label">성별</span>
+                            <span class="material-symbols-rounded filter-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown" id="dropdown-gender">
+                            <button class="filter-option active" data-value="">전체</button>
+                            <button class="filter-option" data-value="남성">남성만</button>
+                            <button class="filter-option" data-value="여성">여성만</button>
+                            <button class="filter-option" data-value="상관없음">상관없음</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 방 만들기 버튼 -->
+                <a href="./pam/create.html" class="pam-create-btn">
+                    <span class="material-symbols-rounded">add</span>
+                    방 만들기
+                </a>
+            </div>
+        </div>
+
+        <!-- 팸 그리드 -->
+        <div class="pam-scroll-area">
+            <div id="pam-grid" class="pam-grid">
+                <div class="pam-loader">
+                    <span class="material-symbols-rounded animation-spin">local_florist</span>
+                    <span>팸을 불러오는 중...</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 우측 패널 -->
+    <aside class="ug-right-panel">
+        <div id="auth-section" class="auth-status-card">
+            <div class="loader-small">연결 중...</div>
+        </div>
+        <!-- 토큰 표시 -->
+        <div class="token-card" id="token-card" style="display:none;">
+            <div class="token-icon">🌸</div>
+            <div class="token-info">
+                <div class="token-label">내 토큰</div>
+                <div class="token-amount"><span id="my-token-count">0</span> <span class="token-unit">잎</span></div>
+            </div>
+        </div>
+        <div class="right-panel-content">
+            <section class="trending-topics">
+                <h2>인기 팸</h2>
+                <ul id="trending-pams" class="trending-pam-list">
+                    <div class="skeleton-text">불러오는 중...</div>
+                </ul>
+            </section>
+        </div>
+    </aside>
+</div>
+
+<!-- 팸 상세 모달 -->
+<div class="pam-modal-overlay" id="pam-modal" style="display:none;">
+    <div class="pam-modal">
+        <button class="pam-modal-close" id="pam-modal-close">
+            <span class="material-symbols-rounded">close</span>
+        </button>
+        <div class="pam-modal-img-wrap">
+            <img id="modal-img" src="" alt="">
+            <div class="pam-modal-img-overlay"></div>
+            <div class="pam-modal-badges">
+                <span id="modal-region-badge" class="pam-badge"></span>
+                <span id="modal-age-badge" class="pam-badge"></span>
+                <span id="modal-gender-badge" class="pam-badge"></span>
+            </div>
+        </div>
+        <div class="pam-modal-body">
+            <div class="pam-modal-header">
+                <div>
+                    <h2 id="modal-name"></h2>
+                    <div class="pam-modal-meta">
+                        <span><span class="material-symbols-rounded">group</span><span id="modal-members">0</span>명</span>
+                        <span id="modal-lock-badge" style="display:none"><span class="material-symbols-rounded">lock</span>비공개</span>
+                    </div>
+                </div>
+                <div class="pam-modal-host">
+                    <img id="modal-host-avatar" src="" alt="" class="modal-host-avatar">
+                    <div>
+                        <div class="modal-host-label">방장</div>
+                        <div id="modal-host-name" class="modal-host-name"></div>
+                    </div>
+                </div>
+            </div>
+            <p id="modal-desc" class="pam-modal-desc"></p>
+
+            <!-- 비번 입력 (잠긴 방) -->
+            <div id="modal-pw-section" style="display:none;">
+                <div class="modal-pw-wrap">
+                    <span class="material-symbols-rounded">lock</span>
+                    <input type="password" id="modal-pw-input" placeholder="6자리 비밀번호" maxlength="6" class="modal-pw-input">
+                </div>
             </div>
 
-            
-        </main>
-        <aside class="ug-right-panel">
-            <div id="auth-section" class="auth-status-card">
-                <div class="loader-small">연결 중...</div>
-            </div>
-            <div class="right-panel-content">
-                <section class="trending-topics">
-                    <h2>인기 검색어</h2>
-                    <ul id="trending-queries">
-                        <div class="skeleton-text">분석 중...</div>
-                    </ul>
-                </section>
-            </div>
-        </aside>
+            <button class="pam-join-btn" id="pam-join-btn">
+                <span class="material-symbols-rounded">door_open</span>
+                팸 참여하기
+            </button>
+        </div>
     </div>
-    <script src="./js/supabase-config.js"></script>
-    <script src="./js/auth-handler.js"></script>
-    <script src="./js/main-logic.js"></script>
+</div>
+
+<script src="./js/supabase-config.js"></script>
+<script src="./js/auth-handler.js"></script>
+<script src="./js/pam-logic.js"></script>
 </body>
 </html>
