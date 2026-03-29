@@ -194,6 +194,14 @@
             </div>
         </div>
         <div class="pam-modal-body">
+            <!-- 탭 -->
+            <div class="pam-modal-tabs">
+                <button class="pam-modal-tab active" data-tab="info">소개</button>
+                <button class="pam-modal-tab" data-tab="chat">채팅 💬</button>
+            </div>
+
+            <!-- 소개 탭 -->
+            <div class="pam-modal-pane active" id="pam-pane-info">
             <div class="pam-modal-header">
                 <div>
                     <h2 id="modal-name"></h2>
@@ -224,6 +232,22 @@
                 <span class="material-symbols-rounded">door_open</span>
                 팸 참여하기
             </button>
+            </div><!-- /pam-pane-info -->
+
+            <!-- 채팅 탭 -->
+            <div class="pam-modal-pane" id="pam-pane-chat">
+                <div class="pam-chat-wrap">
+                    <div class="pam-chat-messages" id="pam-chat-messages">
+                        <div class="pam-chat-loader">참여 후 채팅할 수 있어요</div>
+                    </div>
+                    <div class="pam-chat-input-row">
+                        <input type="text" id="pam-chat-input" class="pam-chat-input" placeholder="메시지 입력...">
+                        <button class="pam-chat-send" id="pam-chat-send-btn">
+                            <span class="material-symbols-rounded">send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -231,5 +255,8 @@
 <script src="./js/supabase-config.js"></script>
 <script src="./js/auth-handler.js"></script>
 <script src="./js/pam-logic.js"></script>
+<script>
+document.getElementById("pam-chat-send-btn")?.addEventListener("click", sendPamMessage);
+</script>
 </body>
 </html>
