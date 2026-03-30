@@ -9,6 +9,7 @@
 
     <link rel="stylesheet" href="./css/global.css">
     <link rel="stylesheet" href="./css/main-style.css">
+    <link rel="stylesheet" href="./css/pam-style.css">
     <link rel="stylesheet" href="./css/gif-additions.css"> 
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -64,13 +65,23 @@
         </nav>
 
         <main class="ug-main-feed">
-            <header class="main-header">
-                <h1>FEED</h1>
-                <div class="feed-tabs">
-                    <button class="tab-item active">최신</button>
-                    <button class="tab-item">팔로잉</button>
+            <!-- 팸 스타일 배너 -->
+            <div class="pam-banner">
+                <div class="pam-banner-content">
+                    <div class="pam-banner-left">
+                        <span class="pam-banner-icon">✦</span>
+                        <span class="pam-banner-label">UNDER GARDEN</span>
+                    </div>
+                    <p class="pam-banner-desc">Deep Web Lounge · 심연의 가든</p>
                 </div>
-            </header>
+            </div>
+
+            <div class="pam-controls" style="border-bottom:1px solid var(--border);">
+                <div class="pam-tabs">
+                    <button class="pam-tab active" data-tab="최신">전체 <span class="tab-spark">✦</span></button>
+                    <button class="pam-tab" data-tab="팔로잉">팔로잉 <span class="tab-spark">👥</span></button>
+                </div>
+            </div>
 
             <div id="main-feed" class="feed-scroll-area">
                 <div class="feed-loader">
