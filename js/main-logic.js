@@ -456,10 +456,22 @@ async function toggleFollow(targetUserId, btn) {
         await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetUserId);
         _followingIds.delete(targetUserId);
         if (btn) { btn.textContent = '팔로우'; btn.classList.remove('following'); }
+        // follower_count 감소
+        const { data: tProfile } = await supabase.from('profiles').select('follower_count').eq('id', targetUserId).single();
+        await supabase.from('profiles').update({ follower_count: Math.max(0, (tProfile?.follower_count || 1) - 1) }).eq('id', targetUserId);
+        // following_count 감소
+        const { data: myProfile2 } = await supabase.from('profiles').select('following_count').eq('id', user.id).single();
+        await supabase.from('profiles').update({ following_count: Math.max(0, (myProfile2?.following_count || 1) - 1) }).eq('id', user.id);
     } else {
         await supabase.from('follows').insert({ follower_id: user.id, following_id: targetUserId });
         _followingIds.add(targetUserId);
         if (btn) { btn.textContent = '팔로잉'; btn.classList.add('following'); }
+        // follower_count 증가
+        const { data: tProfile } = await supabase.from('profiles').select('follower_count').eq('id', targetUserId).single();
+        await supabase.from('profiles').update({ follower_count: (tProfile?.follower_count || 0) + 1 }).eq('id', targetUserId);
+        // following_count 증가
+        const { data: myProfileCnt } = await supabase.from('profiles').select('following_count').eq('id', user.id).single();
+        await supabase.from('profiles').update({ following_count: (myProfileCnt?.following_count || 0) + 1 }).eq('id', user.id);
         const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
         await supabase.from('notifications').insert({
             user_id: targetUserId, type: 'follow', actor_id: user.id,
