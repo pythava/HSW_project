@@ -477,11 +477,17 @@ async function createRoom() {
 
     const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid }));
     await supabase.from('room_members').insert(memberInserts);
-    // 기본 채널 생성
+    
+    // 팸 전용 기본 채팅방 하나만 깔끔하게 생성
     await supabase.from('message_channels').insert([
-            { room_id: room.id, name: '채팅채널1', created_by: _me.id },
-            { room_id: room.id, name: '채팅채널2', created_by: _me.id }
-        ]);
+        { room_id: room.id, name: '기본-채팅', created_by: _me.id }
+    ]);
+
+    document.getElementById('create-room-modal').style.display = 'none';
+    await loadServerList();
+    
+    // 방을 만들자마자 바로 해당 방으로 입장
+    openServerView({ ...room, image_url: imageUrl });
 
     document.getElementById('create-room-modal').style.display = 'none';
     await loadServerList();
