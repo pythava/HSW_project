@@ -13,6 +13,9 @@ let _selectedInviteIds = new Set();
 let _roomList = [];          // 내가 속한 채팅방들
 let _selectedRoomImgFile = null;
 let _selectedSettingsImgFile = null;
+let _mutedChannels = new Set(); // 알림 해제된 채널 ID 목록 (로컬 저장)
+let _channelSettingsTarget = null; // 현재 설정 중인 채널
+let _selectedChSettingsImgFile = null; // 채널 설정용 이미지 파일
 
 /* ─────────────────────────────────────────
    초기화
@@ -28,6 +31,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const avatar = profile?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
     document.getElementById('my-avatar').src = avatar;
     document.getElementById('my-username').textContent = profile?.username || user.email.split('@')[0];
+
+    // 알림 해제 채널 로드
+    try {
+        const saved = JSON.parse(localStorage.getItem('mutedChannels') || '[]');
+        _mutedChannels = new Set(saved);
+    } catch(e) { _mutedChannels = new Set(); }
 
     await loadFollowingList();
     await loadServerList();   // 방 아이콘 로드
@@ -185,9 +194,11 @@ async function loadChannelList(roomId, isOwner) {
         const li = document.createElement('li');
         li.className = 'channel-item channel-item-hover';
         li.dataset.channelId = ch.id;
+        const isMuted = _mutedChannels.has(ch.id);
         li.innerHTML = `
             <span class="material-symbols-rounded channel-hash">tag</span>
             <span class="channel-name">${escapeHtml(ch.name)}</span>
+            ${isMuted ? '<span class="material-symbols-rounded ch-muted-icon" title="알림 해제됨">notifications_off</span>' : ''}
             <button class="ch-more-btn" data-channel-id="${ch.id}" data-channel-name="${escapeHtml(ch.name)}" title="설정">
                 <span class="material-symbols-rounded">more_horiz</span>
             </button>`;
@@ -413,6 +424,13 @@ async function sendMessage() {
     const input = document.getElementById('msg-input');
     const content = input.value.trim();
     if (!content) return;
+
+    // 채널 채팅 권한 체크
+    if (_currentChannel) {
+        const canChat = await checkChatPermission(_currentChannel.id);
+        if (!canChat) { showToast('이 채널에서 메시지를 보낼 권한이 없어요.'); return; }
+    }
+
     input.value = '';
     input.style.height = 'auto';
 
@@ -459,6 +477,17 @@ async function loadRoomMembers(roomId) {
 async function createRoom() {
     const name = document.getElementById('room-name-input').value.trim();
     if (!name) { alert('방 이름을 입력해주세요'); return; }
+
+    // 루나 확인
+    const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
+    const myTokens = tokenData?.amount ?? 0;
+    const COST = 1500;
+    if (myTokens < COST) {
+        alert(`채팅방 만들기에는 ${COST} 루나가 필요해요. (보유: ${myTokens} 루나)`);
+        return;
+    }
+    if (!confirm(`채팅방 만들기에 ${COST} 루나가 소모됩니다. 계속할까요?`)) return;
+
     const memberIds = [..._selectedInviteIds, _me.id];
 
     let imageUrl = null;
@@ -477,12 +506,16 @@ async function createRoom() {
 
     const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid }));
     await supabase.from('room_members').insert(memberInserts);
-    
+
+    // 기본 채널 1개 자동 생성
     await supabase.from('message_channels').insert([
-        { room_id: room.id, name: '채팅채널1', created_by: _me.id },
-        { room_id: room.id, name: '채팅채널2', created_by: _me.id }
+        { room_id: room.id, name: '일반', created_by: _me.id }
     ]);
 
+    // 루나 차감
+    await supabase.from('user_tokens').update({ amount: myTokens - COST }).eq('user_id', _me.id);
+
+    showToast(`채팅방이 만들어졌어요! (${COST} 루나 소모)`);
     document.getElementById('create-room-modal').style.display = 'none';
     await loadServerList();
     openServerView({ ...room, image_url: imageUrl });
@@ -803,14 +836,15 @@ function openChannelMenu(ch, isOwner, btn) {
     const menu = document.createElement('div');
     menu.className = 'ch-context-menu';
     menu.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${rect.left}px;z-index:2000;`;
+    const isMuted = _mutedChannels.has(ch.id);
     menu.innerHTML = `
         <button class="ch-menu-item" data-action="mute">
-            <span class="material-symbols-rounded">notifications_off</span>알림 해제
+            <span class="material-symbols-rounded">${isMuted ? 'notifications' : 'notifications_off'}</span>${isMuted ? '알림 받기' : '알림 해제'}
         </button>
         ${isOwner ? `
         <div class="ch-menu-divider"></div>
-        <button class="ch-menu-item" data-action="rename">
-            <span class="material-symbols-rounded">edit</span>채널 이름 변경
+        <button class="ch-menu-item" data-action="settings">
+            <span class="material-symbols-rounded">settings</span>설정
         </button>
         <button class="ch-menu-item danger" data-action="delete">
             <span class="material-symbols-rounded">delete</span>채널 삭제
@@ -820,12 +854,19 @@ function openChannelMenu(ch, isOwner, btn) {
         item.addEventListener('click', async () => {
             const action = item.dataset.action;
             closeChannelMenu();
-            if (action === 'rename') {
-                const name = prompt('새 채널 이름:', ch.name);
-                if (name && name.trim()) {
-                    await supabase.from('message_channels').update({ name: name.trim() }).eq('id', ch.id);
-                    await loadChannelList(_currentRoom.id, true);
+            if (action === 'mute') {
+                if (_mutedChannels.has(ch.id)) {
+                    _mutedChannels.delete(ch.id);
+                    showToast(`#${ch.name} 알림이 다시 켜졌어요.`);
+                } else {
+                    _mutedChannels.add(ch.id);
+                    showToast(`#${ch.name} 알림이 해제됐어요.`);
                 }
+                // 로컬스토리지 저장
+                localStorage.setItem('mutedChannels', JSON.stringify([..._mutedChannels]));
+                await loadChannelList(_currentRoom.id, isOwner);
+            } else if (action === 'settings') {
+                openChannelSettings(ch);
             } else if (action === 'delete') {
                 if (confirm(`"${ch.name}" 채널을 삭제할까요?`)) {
                     await supabase.from('messages').delete().eq('channel_id', ch.id);
@@ -834,8 +875,6 @@ function openChannelMenu(ch, isOwner, btn) {
                     document.getElementById('chat-welcome').style.display = 'flex';
                     document.getElementById('chat-room').style.display = 'none';
                 }
-            } else if (action === 'mute') {
-                alert('알림이 해제됐어요.');
             }
         });
     });
@@ -855,21 +894,25 @@ async function addChannelWithToken() {
     // 토큰 확인
     const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
     const myTokens = tokenData?.amount ?? 0;
-    const { count: chCount } = await supabase.from('message_channels').select('*', {count:'exact',head:true}).eq('room_id', _currentRoom.id);
-    const cost = chCount >= 2 ? 3000 : 0; // 기본 2개 무료, 추가는 3000루나
+    const COST = 500; // 채널 추가: 500루나
 
-    if (cost > 0 && myTokens < cost) {
-        alert(`채널 추가에는 ${cost} 루나가 필요해요. (보유: ${myTokens} 루나)`);
+    if (myTokens < COST) {
+        alert(`채널 추가에는 ${COST} 루나가 필요해요. (보유: ${myTokens} 루나)`);
         return;
     }
-    if (cost > 0 && !confirm(`채널 추가에 ${cost} 루나가 소모됩니다. 계속할까요?`)) return;
+    if (!confirm(`채널 추가에 ${COST} 루나가 소모됩니다. 계속할까요?`)) return;
 
-    await supabase.from('message_channels').insert({ room_id: _currentRoom.id, name, created_by: _me.id });
-    if (cost > 0) await supabase.from('user_tokens').update({ amount: myTokens - cost }).eq('user_id', _me.id);
+    const { data: newChannel, error: chErr } = await supabase.from('message_channels')
+        .insert({ room_id: _currentRoom.id, name, created_by: _me.id })
+        .select().single();
+    if (chErr) { alert('채널 추가 실패: ' + chErr.message); return; }
 
+    // 루나 차감
+    await supabase.from('user_tokens').update({ amount: myTokens - COST }).eq('user_id', _me.id);
+
+    showToast(`#${name} 채널이 추가됐어요! (${COST} 루나 소모)`);
     document.getElementById('add-channel-modal').style.display = 'none';
     document.getElementById('channel-name-input').value = '';
-    const { count: newCount } = await supabase.from('message_channels').select('*', {count:'exact',head:true}).eq('room_id', _currentRoom.id);
     await loadChannelList(_currentRoom.id, true);
 }
 
@@ -888,4 +931,176 @@ async function uploadChatImage(file) {
     if (_currentChannel) { insertData.channel_id = _currentChannel.id; insertData.room_id = _currentRoom.id; }
     else if (_currentRoom) { insertData.room_id = _currentRoom.id; }
     await supabase.from('messages').insert(insertData);
+}
+
+/* ─── 채널 설정 ─── */
+async function openChannelSettings(ch) {
+    _channelSettingsTarget = ch;
+    _selectedChSettingsImgFile = null;
+
+    // 모달이 없으면 동적 생성
+    let modal = document.getElementById('channel-settings-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'channel-settings-modal';
+        modal.className = 'modal-overlay';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3 id="ch-settings-title">채널 설정</h3>
+                <button class="icon-btn" id="close-ch-settings"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            <div class="modal-body">
+                <label class="modal-label">채널 사진</label>
+                <label for="ch-settings-img-file" class="room-img-upload-label" id="ch-settings-img-label">
+                    <span class="material-symbols-rounded">add_photo_alternate</span><span>사진 추가</span>
+                </label>
+                <input type="file" id="ch-settings-img-file" accept="image/*" style="display:none;">
+
+                <label class="modal-label" style="margin-top:16px;">채널 이름 <span style="color:var(--primary)">*</span></label>
+                <input type="text" id="ch-settings-name" class="modal-input" maxlength="20" placeholder="채널 이름">
+
+                <div class="modal-section-title" style="margin-top:20px;">채팅 볼 수 있는 멤버</div>
+                <p class="modal-section-desc">선택된 멤버만 이 채널을 볼 수 있어요. 아무도 선택 안 하면 전체 공개.</p>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <button class="btn-secondary btn-sm" id="ch-perm-view-all">전체 선택</button>
+                    <button class="btn-secondary btn-sm" id="ch-perm-view-none">전체 해제</button>
+                </div>
+                <ul id="ch-perm-view-list" class="perm-member-list"></ul>
+
+                <div class="modal-section-title" style="margin-top:20px;">채팅 칠 수 있는 멤버</div>
+                <p class="modal-section-desc">선택된 멤버만 이 채널에서 메시지를 보낼 수 있어요. 아무도 선택 안 하면 전체 허용.</p>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <button class="btn-secondary btn-sm" id="ch-perm-chat-all">전체 선택</button>
+                    <button class="btn-secondary btn-sm" id="ch-perm-chat-none">전체 해제</button>
+                </div>
+                <ul id="ch-perm-chat-list" class="perm-member-list"></ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancel-ch-settings">취소</button>
+                <button class="btn-primary" id="confirm-ch-settings">저장</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+
+        document.getElementById('close-ch-settings').addEventListener('click', () => { modal.style.display = 'none'; });
+        document.getElementById('cancel-ch-settings').addEventListener('click', () => { modal.style.display = 'none'; });
+        document.getElementById('confirm-ch-settings').addEventListener('click', saveChannelSettings);
+        document.getElementById('ch-settings-img-file').addEventListener('change', e => {
+            const file = e.target.files[0]; if (!file) return;
+            _selectedChSettingsImgFile = file;
+            const url = URL.createObjectURL(file);
+            document.getElementById('ch-settings-img-label').innerHTML = `<img src="${url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;"><span>변경</span>`;
+        });
+        modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
+
+    // 채널 이름 세팅
+    document.getElementById('ch-settings-title').textContent = `#${ch.name} 설정`;
+    document.getElementById('ch-settings-name').value = ch.name;
+
+    // 채널 이미지 세팅
+    const imgLabel = document.getElementById('ch-settings-img-label');
+    if (ch.image_url) {
+        imgLabel.innerHTML = `<img src="${ch.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;"><span>변경</span>`;
+    } else {
+        imgLabel.innerHTML = '<span class="material-symbols-rounded">add_photo_alternate</span><span>사진 추가</span>';
+    }
+
+    // 방 멤버 로드
+    const { data: members } = await supabase.from('room_members').select('user_id, profiles(username, avatar_url)').eq('room_id', _currentRoom.id);
+
+    // 현재 권한 로드
+    const { data: permData } = await supabase.from('channel_permissions').select('*').eq('channel_id', ch.id);
+    const viewAllowed = new Set((permData || []).filter(p => p.can_view).map(p => p.user_id));
+    const chatAllowed = new Set((permData || []).filter(p => p.can_chat).map(p => p.user_id));
+
+    function renderPermList(listId, selectedSet, btnAllId, btnNoneId) {
+        const list = document.getElementById(listId);
+        list.innerHTML = '';
+        (members || []).forEach(m => {
+            const uname = m.profiles?.username || m.user_id.slice(0,8);
+            const avatar = m.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${m.user_id}`;
+            const isSelected = selectedSet.has(m.user_id);
+            const li = document.createElement('li');
+            li.className = `perm-member-item${isSelected ? ' selected' : ''}`;
+            li.dataset.userId = m.user_id;
+            li.innerHTML = `<img src="${avatar}" class="invite-avatar"><span class="invite-username">${escapeHtml(uname)}${m.user_id === _me.id ? ' (나)' : ''}</span>${isSelected ? '<span class="material-symbols-rounded invite-check">check_circle</span>' : ''}`;
+            li.addEventListener('click', () => {
+                if (selectedSet.has(m.user_id)) selectedSet.delete(m.user_id);
+                else selectedSet.add(m.user_id);
+                renderPermList(listId, selectedSet, btnAllId, btnNoneId);
+            });
+            list.appendChild(li);
+        });
+        document.getElementById(btnAllId).onclick = () => {
+            (members || []).forEach(m => selectedSet.add(m.user_id));
+            renderPermList(listId, selectedSet, btnAllId, btnNoneId);
+        };
+        document.getElementById(btnNoneId).onclick = () => {
+            selectedSet.clear();
+            renderPermList(listId, selectedSet, btnAllId, btnNoneId);
+        };
+    }
+
+    // Set 참조를 modal에 저장
+    modal._viewAllowed = viewAllowed;
+    modal._chatAllowed = chatAllowed;
+
+    renderPermList('ch-perm-view-list', viewAllowed, 'ch-perm-view-all', 'ch-perm-view-none');
+    renderPermList('ch-perm-chat-list', chatAllowed, 'ch-perm-chat-all', 'ch-perm-chat-none');
+
+    modal.style.display = 'flex';
+}
+
+async function saveChannelSettings() {
+    const ch = _channelSettingsTarget;
+    if (!ch) return;
+    const name = document.getElementById('ch-settings-name').value.trim();
+    if (!name) { alert('채널 이름을 입력해주세요'); return; }
+
+    const modal = document.getElementById('channel-settings-modal');
+    const viewAllowed = modal._viewAllowed;
+    const chatAllowed = modal._chatAllowed;
+
+    let imageUrl = ch.image_url || null;
+    if (_selectedChSettingsImgFile) {
+        const ext = _selectedChSettingsImgFile.name.split('.').pop();
+        const fileName = `channels/${_me.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('post-images').upload(fileName, _selectedChSettingsImgFile, { upsert: false });
+        if (!upErr) {
+            const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
+            imageUrl = pub.publicUrl;
+        }
+    }
+
+    // 채널 정보 업데이트
+    await supabase.from('message_channels').update({ name, image_url: imageUrl }).eq('id', ch.id);
+
+    // 권한 저장 (기존 삭제 후 재삽입)
+    await supabase.from('channel_permissions').delete().eq('channel_id', ch.id);
+
+    // 방 멤버 전체 가져오기
+    const { data: members } = await supabase.from('room_members').select('user_id').eq('room_id', _currentRoom.id);
+    const permInserts = (members || []).map(m => ({
+        channel_id: ch.id,
+        user_id: m.user_id,
+        can_view: viewAllowed.size === 0 ? true : viewAllowed.has(m.user_id),
+        can_chat: chatAllowed.size === 0 ? true : chatAllowed.has(m.user_id)
+    }));
+    if (permInserts.length > 0) await supabase.from('channel_permissions').insert(permInserts);
+
+    modal.style.display = 'none';
+    showToast(`#${name} 채널 설정이 저장됐어요.`);
+    await loadChannelList(_currentRoom.id, true);
+}
+
+/* ─── 메시지 전송 시 권한 체크 ─── */
+async function checkChatPermission(channelId) {
+    if (!channelId) return true;
+    const { data } = await supabase.from('channel_permissions')
+        .select('can_chat').eq('channel_id', channelId).eq('user_id', _me.id).single();
+    if (!data) return true; // 권한 데이터 없으면 허용
+    return data.can_chat;
 }
