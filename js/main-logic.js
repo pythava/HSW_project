@@ -39,12 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchPosts('최신');
     fetchTrendingQueries();
 
-    const tabs = document.querySelectorAll('.feed-tabs .tab-item');
+    const tabs = document.querySelectorAll('.feed-tabs .pam-tab');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            _currentTab = tab.textContent.trim();
+            _currentTab = tab.dataset.tab || tab.textContent.replace(/[✦👥]/g,'').trim();
             document.getElementById('main-feed').innerHTML = `
                 <div class="feed-loader">
                     <span class="material-symbols-rounded animation-spin">sync</span>
