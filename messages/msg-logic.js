@@ -1,4 +1,4 @@
-/* messages/msg-logic.js — 디스코드 서버+채널 구조 v2 */
+/* messages/msg-logic.js — 3단계 구조 (채팅방 → 채널 → 방) */
 
 /* ─────────────────────────────────────────
    상태
@@ -6,16 +6,17 @@
 let _me = null;
 let _myProfile = null;
 let _followingList = [];
-let _currentRoom = null;     // 현재 선택된 방 { id, type, name, ... }
-let _currentChannel = null;  // 현재 선택된 채널 { id, name, room_id }
+let _currentServer = null;    // 현재 선택된 채팅방 (message_rooms)
+let _currentChannel = null;   // 현재 선택된 채널 (message_channels)
+let _currentChatRoom = null;  // 현재 선택된 방 (channel_rooms)
 let _realtimeChannel = null;
 let _selectedInviteIds = new Set();
-let _roomList = [];          // 내가 속한 채팅방들
-let _selectedRoomImgFile = null;
+let _serverList = [];
+let _selectedServerImgFile = null;
 let _selectedSettingsImgFile = null;
-let _mutedChannels = new Set(); // 알림 해제된 채널 ID 목록 (로컬 저장)
-let _channelSettingsTarget = null; // 현재 설정 중인 채널
-let _selectedChSettingsImgFile = null; // 채널 설정용 이미지 파일
+let _mutedRooms = new Set();  // 알림 해제된 방 ID
+let _channelSettingsTarget = null;
+let _selectedChSettingsImgFile = null;
 
 /* ─────────────────────────────────────────
    초기화
@@ -32,15 +33,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('my-avatar').src = avatar;
     document.getElementById('my-username').textContent = profile?.username || user.email.split('@')[0];
 
-    // 알림 해제 채널 로드
+    // 알림 해제 방 목록 불러오기
     try {
-        const saved = JSON.parse(localStorage.getItem('mutedChannels') || '[]');
-        _mutedChannels = new Set(saved);
-    } catch(e) { _mutedChannels = new Set(); }
+        const saved = JSON.parse(localStorage.getItem(`mutedRooms_${user.id}`) || '[]');
+        _mutedRooms = new Set(saved);
+    } catch(e) { _mutedRooms = new Set(); }
 
     await loadFollowingList();
-    await loadServerList();   // 방 아이콘 로드
-    await loadDmList();       // DM 목록
+    await loadServerList();
+    await loadDmList();
 
     subscribeToMyInvites();
     checkNotiBadge(user.id);
@@ -60,32 +61,26 @@ async function loadFollowingList() {
 }
 
 /* ─────────────────────────────────────────
-   서버(방) 아이콘 리스트
+   채팅방(서버) 아이콘 리스트
 ───────────────────────────────────────── */
 async function loadServerList() {
     const { data: memberships } = await supabase.from('room_members').select('room_id').eq('user_id', _me.id);
-    if (!memberships || memberships.length === 0) { _roomList = []; return; }
+    if (!memberships || memberships.length === 0) { _serverList = []; renderServerIcons(); return; }
     const roomIds = memberships.map(m => m.room_id);
     const { data: rooms } = await supabase.from('message_rooms').select('*').in('id', roomIds).eq('type', 'room').order('updated_at', { ascending: false });
-    _roomList = rooms || [];
+    _serverList = rooms || [];
     renderServerIcons();
 }
 
 function renderServerIcons() {
     const container = document.getElementById('server-icons');
     container.innerHTML = '';
-    _roomList.forEach(room => {
+    _serverList.forEach(room => {
         const btn = document.createElement('button');
         btn.className = 'server-icon';
         btn.dataset.roomId = room.id;
         btn.title = room.name;
-
-        // --- 클릭 이벤트 추가 시작 ---
-        btn.addEventListener('click', () => {
-            openServerView(room);
-        });
-        // --- 클릭 이벤트 추가 끝 ---
-
+        btn.addEventListener('click', () => openServerView(room));
         if (room.image_url) {
             const img = document.createElement('img');
             img.src = room.image_url;
@@ -94,14 +89,14 @@ function renderServerIcons() {
                 this.remove();
                 const sp = document.createElement('span');
                 sp.style.cssText = 'font-size:13px;font-weight:800;color:var(--text-2)';
-                sp.textContent = room.name.substring(0,2);
+                sp.textContent = room.name.substring(0, 2);
                 btn.appendChild(sp);
             };
             btn.appendChild(img);
         } else {
             const sp = document.createElement('span');
             sp.style.cssText = 'font-size:13px;font-weight:800;color:var(--text-2)';
-            sp.textContent = room.name.substring(0,2);
+            sp.textContent = room.name.substring(0, 2);
             btn.appendChild(sp);
         }
         container.appendChild(btn);
@@ -138,18 +133,18 @@ async function loadDmList() {
 }
 
 /* ─────────────────────────────────────────
-   서버 뷰 (방 채널 목록)
+   채팅방(서버) 뷰 열기
 ───────────────────────────────────────── */
 async function openServerView(room) {
-    _currentRoom = room;
+    _currentServer = room;
+    _currentChannel = null;
+    _currentChatRoom = null;
 
-    // 서버 아이콘 활성화
     document.querySelectorAll('.server-icon').forEach(el => el.classList.remove('active'));
     document.getElementById('server-home-btn').classList.remove('active');
     const activeIcon = document.querySelector(`.server-icon[data-room-id="${room.id}"]`);
     if (activeIcon) activeIcon.classList.add('active');
 
-    // 사이드바 전환
     document.getElementById('dm-sidebar').style.display = 'none';
     const roomSidebar = document.getElementById('room-sidebar');
     roomSidebar.style.display = 'flex';
@@ -157,140 +152,625 @@ async function openServerView(room) {
     roomSidebar.style.flex = '1';
     roomSidebar.style.overflow = 'hidden';
 
-    // 방 헤더 업데이트
     const imgEl = document.getElementById('room-sidebar-img');
     if (room.image_url) { imgEl.src = room.image_url; imgEl.style.display = 'block'; }
     else { imgEl.style.display = 'none'; }
     document.getElementById('room-sidebar-name').textContent = room.name;
 
-    // 방장이면 설정 버튼 표시
     const isOwner = room.created_by === _me.id;
     document.getElementById('room-settings-btn').style.display = isOwner ? 'flex' : 'none';
     document.getElementById('add-channel-btn').style.display = isOwner ? 'flex' : 'none';
 
-    // 채널 목록 로드
+    // 채팅 영역 초기화
+    document.getElementById('chat-welcome').style.display = 'flex';
+    document.getElementById('chat-room').style.display = 'none';
+
     await loadChannelList(room.id, isOwner);
 }
 
-async function loadChannelList(roomId, isOwner) {
+/* ─────────────────────────────────────────
+   채널 목록 로드 (채팅방 안의 채널들)
+───────────────────────────────────────── */
+async function loadChannelList(serverId, isOwner) {
     const channelListEl = document.getElementById('channel-list');
     channelListEl.innerHTML = '<li class="channel-loading"><span class="material-symbols-rounded animation-spin">sync</span></li>';
 
-    const { data: channels } = await supabase.from('message_channels').select('*').eq('room_id', roomId).order('created_at', { ascending: true });
+    const { data: channels } = await supabase
+        .from('message_channels')
+        .select('*')
+        .eq('room_id', serverId)
+        .order('created_at', { ascending: true });
 
     channelListEl.innerHTML = '';
 
     if (!channels || channels.length === 0) {
-        // 방장이면 기본 채널 자동 생성
         if (isOwner) {
-            await supabase.from('message_channels').insert({ room_id: roomId, name: '일반', created_by: _me.id });
-            return loadChannelList(roomId, isOwner);
+            // 기본 채널 자동 생성
+            const { data: newCh } = await supabase.from('message_channels')
+                .insert({ room_id: serverId, name: '일반', created_by: _me.id })
+                .select().single();
+            if (newCh) {
+                // 기본 방 1개도 자동 생성
+                await supabase.from('channel_rooms')
+                    .insert({ channel_id: newCh.id, name: '일반채팅', created_by: _me.id });
+            }
+            return loadChannelList(serverId, isOwner);
         }
         channelListEl.innerHTML = '<li class="channel-empty">채널이 없어요</li>';
         return;
     }
 
-    channels.forEach(ch => {
-        const li = document.createElement('li');
-        li.className = 'channel-item channel-item-hover';
-        li.dataset.channelId = ch.id;
-        const isMuted = _mutedChannels.has(ch.id);
-        li.innerHTML = `
-            <span class="material-symbols-rounded channel-hash">tag</span>
-            <span class="channel-name">${escapeHtml(ch.name)}</span>
-            ${isMuted ? '<span class="material-symbols-rounded ch-muted-icon" title="알림 해제됨">notifications_off</span>' : ''}
-            <button class="ch-more-btn" data-channel-id="${ch.id}" data-channel-name="${escapeHtml(ch.name)}" title="설정">
-                <span class="material-symbols-rounded">more_horiz</span>
-            </button>`;
-        li.querySelector('.channel-name').addEventListener('click', () => openChannel(ch));
-        li.querySelector('.ch-more-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            openChannelMenu(ch, isOwner, e.currentTarget);
-        });
-        channelListEl.appendChild(li);
-    });
-
-    // 첫 번째 채널 자동 선택
-    if (channels.length > 0) openChannel(channels[0]);
+    for (const ch of channels) {
+        await renderChannelItem(channelListEl, ch, isOwner, serverId);
+    }
 }
 
-async function openChannel(channel) {
-    _currentChannel = channel;
-    _currentRoom = { ..._currentRoom, channelId: channel.id };
+async function renderChannelItem(parentEl, ch, isOwner, serverId) {
+    // 채널 헤더
+    const chLi = document.createElement('li');
+    chLi.className = 'channel-group';
+    chLi.dataset.channelId = ch.id;
 
-    document.querySelectorAll('#channel-list .channel-item').forEach(el => el.classList.remove('active'));
-    const activeEl = document.querySelector(`[data-channel-id="${channel.id}"]`);
+    chLi.innerHTML = `
+        <div class="channel-group-header" data-channel-id="${ch.id}">
+            <span class="material-symbols-rounded ch-fold-icon">expand_more</span>
+            <span class="material-symbols-rounded channel-hash">tag</span>
+            <span class="channel-group-name">${escapeHtml(ch.name)}</span>
+            ${isOwner ? `
+            <div class="ch-header-actions">
+                <button class="ch-add-room-btn" data-channel-id="${ch.id}" title="방 추가 (500루나)">
+                    <span class="material-symbols-rounded">add</span>
+                </button>
+                <button class="ch-more-btn" data-channel-id="${ch.id}" title="채널 설정">
+                    <span class="material-symbols-rounded">more_horiz</span>
+                </button>
+            </div>` : ''}
+        </div>
+        <ul class="channel-room-list" id="rooms-of-ch-${ch.id}">
+            <li class="channel-loading"><span class="material-symbols-rounded animation-spin" style="font-size:14px;">sync</span></li>
+        </ul>`;
+
+    // 채널 접기/펼치기
+    const header = chLi.querySelector('.channel-group-header');
+    const roomList = chLi.querySelector('.channel-room-list');
+    const foldIcon = chLi.querySelector('.ch-fold-icon');
+    header.addEventListener('click', (e) => {
+        if (e.target.closest('.ch-add-room-btn') || e.target.closest('.ch-more-btn')) return;
+        const folded = roomList.style.display === 'none';
+        roomList.style.display = folded ? '' : 'none';
+        foldIcon.textContent = folded ? 'expand_more' : 'chevron_right';
+    });
+
+    // 방 추가 버튼
+    chLi.querySelector('.ch-add-room-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAddChatRoomModal(ch);
+    });
+
+    // 채널 더보기(설정/삭제) 버튼
+    chLi.querySelector('.ch-more-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openChannelMenu(ch, isOwner, e.currentTarget, serverId);
+    });
+
+    parentEl.appendChild(chLi);
+
+    // 채널 안 방 목록 로드
+    await loadChatRoomList(ch.id, isOwner);
+}
+
+/* ─────────────────────────────────────────
+   채널 안 방 목록 로드 (channel_rooms)
+───────────────────────────────────────── */
+async function loadChatRoomList(channelId, isOwner) {
+    const listEl = document.getElementById(`rooms-of-ch-${channelId}`);
+    if (!listEl) return;
+
+    const { data: chatRooms } = await supabase
+        .from('channel_rooms')
+        .select('*')
+        .eq('channel_id', channelId)
+        .order('created_at', { ascending: true });
+
+    listEl.innerHTML = '';
+
+    if (!chatRooms || chatRooms.length === 0) {
+        listEl.innerHTML = '<li class="channel-empty" style="font-size:0.78rem;padding-left:40px;">방이 없어요</li>';
+        return;
+    }
+
+    chatRooms.forEach(cr => {
+        const isMuted = _mutedRooms.has(cr.id);
+        const li = document.createElement('li');
+        li.className = 'chat-room-item channel-item-hover';
+        li.dataset.chatRoomId = cr.id;
+        li.innerHTML = `
+            <span class="material-symbols-rounded cr-icon">chat</span>
+            <span class="cr-name">${escapeHtml(cr.name)}</span>
+            ${isMuted ? '<span class="material-symbols-rounded ch-muted-icon" title="알림 해제됨">notifications_off</span>' : ''}
+            <button class="cr-more-btn" title="방 설정">
+                <span class="material-symbols-rounded">more_horiz</span>
+            </button>`;
+        li.querySelector('.cr-name').addEventListener('click', () => openChatRoom(cr, channelId));
+        li.querySelector('.cr-more-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openChatRoomMenu(cr, channelId, isOwner, e.currentTarget);
+        });
+        listEl.appendChild(li);
+    });
+}
+
+/* ─────────────────────────────────────────
+   방(channel_room) 열기
+───────────────────────────────────────── */
+async function openChatRoom(chatRoom, channelId) {
+    _currentChatRoom = chatRoom;
+
+    // 채널 정보도 업데이트
+    const { data: ch } = await supabase.from('message_channels').select('*').eq('id', channelId).single();
+    _currentChannel = ch;
+
+    // 활성 표시
+    document.querySelectorAll('.chat-room-item').forEach(el => el.classList.remove('active'));
+    const activeEl = document.querySelector(`.chat-room-item[data-chat-room-id="${chatRoom.id}"]`);
     if (activeEl) activeEl.classList.add('active');
 
-    // 채팅창 열기
     document.getElementById('chat-welcome').style.display = 'none';
-    const chatRoom = document.getElementById('chat-room');
-    chatRoom.style.display = 'flex';
+    const chatRoomEl = document.getElementById('chat-room');
+    chatRoomEl.style.display = 'flex';
 
     document.getElementById('chat-room-avatar').style.display = 'none';
     document.getElementById('chat-channel-hash').style.display = 'inline';
-    document.getElementById('chat-room-name').textContent = channel.name;
-    document.getElementById('chat-room-sub').textContent = _currentRoom?.name || '';
-    document.getElementById('msg-input').placeholder = `#${channel.name}에 메시지 보내기`;
+    document.getElementById('chat-room-name').textContent = chatRoom.name;
+    document.getElementById('chat-room-sub').textContent = `${_currentServer?.name || ''} › ${ch?.name || ''}`;
+    document.getElementById('msg-input').placeholder = `#${chatRoom.name}에 메시지 보내기`;
     document.getElementById('members-panel').style.display = 'none';
 
-    await loadMessages(null, channel.id);
-    subscribeToChannel(channel.id);
-    loadRoomMembers(_currentRoom.id);
+    await loadMessages(chatRoom.id);
+    subscribeToChatRoom(chatRoom.id);
+    loadRoomMembers(_currentServer.id);
+
+    // 읽음 처리
+    await supabase.from('room_members').update({ last_read_at: new Date().toISOString() })
+        .eq('room_id', _currentServer.id).eq('user_id', _me.id);
 }
 
 /* ─────────────────────────────────────────
-   DM 방 열기
+   방 컨텍스트 메뉴 (알림 토글 + 방장 전용)
 ───────────────────────────────────────── */
-async function openDmRoom(room, meta) {
-    _currentRoom = { ...room, ...meta, type: 'dm' };
-    _currentChannel = null;
+let _roomMenuEl = null;
+function openChatRoomMenu(cr, channelId, isOwner, btn) {
+    if (_roomMenuEl) { _roomMenuEl.remove(); _roomMenuEl = null; }
+    const rect = btn.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.className = 'ch-context-menu';
+    menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;left:${rect.left}px;z-index:2000;`;
+    const isMuted = _mutedRooms.has(cr.id);
+    menu.innerHTML = `
+        <button class="ch-menu-item" data-action="mute">
+            <span class="material-symbols-rounded">${isMuted ? 'notifications' : 'notifications_off'}</span>
+            ${isMuted ? '알림 받기' : '알림 해제'}
+        </button>
+        ${isOwner ? `
+        <div class="ch-menu-divider"></div>
+        <button class="ch-menu-item" data-action="settings">
+            <span class="material-symbols-rounded">settings</span>방 설정
+        </button>
+        <button class="ch-menu-item danger" data-action="delete">
+            <span class="material-symbols-rounded">delete</span>방 삭제
+        </button>` : ''}`;
 
-    document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
-    const activeEl = document.querySelector(`[data-room-id="${room.id}"]`);
-    if (activeEl) activeEl.classList.add('active');
+    menu.querySelectorAll('.ch-menu-item').forEach(item => {
+        item.addEventListener('click', async () => {
+            const action = item.dataset.action;
+            menu.remove(); _roomMenuEl = null;
+            if (action === 'mute') {
+                if (_mutedRooms.has(cr.id)) {
+                    _mutedRooms.delete(cr.id);
+                    showToast(`#${cr.name} 알림이 켜졌어요.`);
+                } else {
+                    _mutedRooms.add(cr.id);
+                    showToast(`#${cr.name} 알림이 해제됐어요.`);
+                }
+                localStorage.setItem(`mutedRooms_${_me.id}`, JSON.stringify([..._mutedRooms]));
+                await loadChatRoomList(channelId, isOwner);
+            } else if (action === 'settings') {
+                openChatRoomSettings(cr, channelId);
+            } else if (action === 'delete') {
+                if (confirm(`"${cr.name}" 방을 삭제할까요? 채팅 내역도 모두 삭제됩니다.`)) {
+                    await supabase.from('messages').delete().eq('chat_room_id', cr.id);
+                    await supabase.from('channel_rooms').delete().eq('id', cr.id);
+                    if (_currentChatRoom?.id === cr.id) {
+                        document.getElementById('chat-welcome').style.display = 'flex';
+                        document.getElementById('chat-room').style.display = 'none';
+                        _currentChatRoom = null;
+                    }
+                    await loadChatRoomList(channelId, isOwner);
+                }
+            }
+        });
+    });
 
-    document.getElementById('chat-welcome').style.display = 'none';
-    const chatRoom = document.getElementById('chat-room');
-    chatRoom.style.display = 'flex';
-
-    const avatarEl = document.getElementById('chat-room-avatar');
-    if (meta.avatar) { avatarEl.src = meta.avatar; avatarEl.style.display = 'block'; }
-    else { avatarEl.style.display = 'none'; }
-    document.getElementById('chat-channel-hash').style.display = 'none';
-    document.getElementById('chat-room-name').textContent = meta.name;
-    document.getElementById('chat-room-sub').textContent = '다이렉트 메시지';
-    document.getElementById('msg-input').placeholder = `${meta.name}에게 메시지 보내기`;
-    document.getElementById('members-panel').style.display = 'none';
-
-    await loadMessages(room.id, null);
-    subscribeToRoom(room.id);
-}
-
-function switchToDmView() {
-    document.getElementById('dm-sidebar').style.display = 'flex';
-    document.getElementById('dm-sidebar').style.flexDirection = 'column';
-    document.getElementById('dm-sidebar').style.flex = '1';
-    document.getElementById('dm-sidebar').style.overflow = 'hidden';
-    document.getElementById('room-sidebar').style.display = 'none';
-    document.querySelectorAll('.server-icon').forEach(el => el.classList.remove('active'));
-    document.getElementById('server-home-btn').classList.add('active');
-    _currentRoom = null;
-    _currentChannel = null;
+    document.body.appendChild(menu);
+    _roomMenuEl = menu;
+    setTimeout(() => document.addEventListener('click', () => { menu.remove(); _roomMenuEl = null; }, { once: true }), 0);
 }
 
 /* ─────────────────────────────────────────
-   메시지 로드
+   방 설정 모달
 ───────────────────────────────────────── */
-async function loadMessages(roomId, channelId) {
+async function openChatRoomSettings(cr, channelId) {
+    let modal = document.getElementById('chat-room-settings-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'chat-room-settings-modal';
+        modal.className = 'modal-overlay';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3 id="cr-settings-title">방 설정</h3>
+                <button class="icon-btn" id="close-cr-settings"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            <div class="modal-body">
+                <label class="modal-label">방 사진</label>
+                <label for="cr-settings-img-file" class="room-img-upload-label" id="cr-settings-img-label">
+                    <span class="material-symbols-rounded">add_photo_alternate</span><span>사진 추가</span>
+                </label>
+                <input type="file" id="cr-settings-img-file" accept="image/*" style="display:none;">
+
+                <label class="modal-label" style="margin-top:16px;">방 이름 <span style="color:var(--primary)">*</span></label>
+                <input type="text" id="cr-settings-name" class="modal-input" maxlength="20" placeholder="방 이름">
+
+                <div class="modal-section-title" style="margin-top:20px;">채팅 볼 수 있는 멤버</div>
+                <p class="modal-section-desc">선택하지 않으면 전체 공개</p>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <button class="btn-secondary btn-sm" id="cr-perm-view-all">전체 선택</button>
+                    <button class="btn-secondary btn-sm" id="cr-perm-view-none">전체 해제</button>
+                </div>
+                <ul id="cr-perm-view-list" class="perm-member-list"></ul>
+
+                <div class="modal-section-title" style="margin-top:20px;">채팅 칠 수 있는 멤버</div>
+                <p class="modal-section-desc">선택하지 않으면 전체 허용</p>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <button class="btn-secondary btn-sm" id="cr-perm-chat-all">전체 선택</button>
+                    <button class="btn-secondary btn-sm" id="cr-perm-chat-none">전체 해제</button>
+                </div>
+                <ul id="cr-perm-chat-list" class="perm-member-list"></ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="cancel-cr-settings">취소</button>
+                <button class="btn-primary" id="confirm-cr-settings">저장</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        document.getElementById('close-cr-settings').addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('cancel-cr-settings').addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('confirm-cr-settings').addEventListener('click', () => saveChatRoomSettings(channelId));
+        document.getElementById('cr-settings-img-file').addEventListener('change', e => {
+            const file = e.target.files[0]; if (!file) return;
+            modal._imgFile = file;
+            const url = URL.createObjectURL(file);
+            document.getElementById('cr-settings-img-label').innerHTML = `<img src="${url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;"><span>변경</span>`;
+        });
+        modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
+
+    modal._cr = cr;
+    modal._channelId = channelId;
+    modal._imgFile = null;
+
+    document.getElementById('cr-settings-title').textContent = `#${cr.name} 방 설정`;
+    document.getElementById('cr-settings-name').value = cr.name;
+
+    const imgLabel = document.getElementById('cr-settings-img-label');
+    if (cr.image_url) {
+        imgLabel.innerHTML = `<img src="${cr.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;"><span>변경</span>`;
+    } else {
+        imgLabel.innerHTML = '<span class="material-symbols-rounded">add_photo_alternate</span><span>사진 추가</span>';
+    }
+
+    // 멤버 로드
+    const { data: members } = await supabase.from('room_members')
+        .select('user_id, profiles(username, avatar_url)').eq('room_id', _currentServer.id);
+
+    // 기존 권한 로드
+    const { data: permData } = await supabase.from('chat_room_permissions')
+        .select('*').eq('chat_room_id', cr.id);
+    const viewSet = new Set((permData || []).filter(p => p.can_view).map(p => p.user_id));
+    const chatSet = new Set((permData || []).filter(p => p.can_chat).map(p => p.user_id));
+    modal._viewSet = viewSet;
+    modal._chatSet = chatSet;
+
+    function renderList(listId, set, allBtnId, noneBtnId) {
+        const list = document.getElementById(listId);
+        list.innerHTML = '';
+        (members || []).forEach(m => {
+            const uname = m.profiles?.username || m.user_id.slice(0, 8);
+            const avatar = m.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${m.user_id}`;
+            const isSelected = set.has(m.user_id);
+            const li = document.createElement('li');
+            li.className = `perm-member-item${isSelected ? ' selected' : ''}`;
+            li.innerHTML = `<img src="${avatar}" class="invite-avatar"><span class="invite-username">${escapeHtml(uname)}${m.user_id === _me.id ? ' (나)' : ''}</span>${isSelected ? '<span class="material-symbols-rounded invite-check">check_circle</span>' : ''}`;
+            li.addEventListener('click', () => {
+                if (set.has(m.user_id)) set.delete(m.user_id); else set.add(m.user_id);
+                renderList(listId, set, allBtnId, noneBtnId);
+            });
+            list.appendChild(li);
+        });
+        document.getElementById(allBtnId).onclick = () => { (members || []).forEach(m => set.add(m.user_id)); renderList(listId, set, allBtnId, noneBtnId); };
+        document.getElementById(noneBtnId).onclick = () => { set.clear(); renderList(listId, set, allBtnId, noneBtnId); };
+    }
+
+    renderList('cr-perm-view-list', viewSet, 'cr-perm-view-all', 'cr-perm-view-none');
+    renderList('cr-perm-chat-list', chatSet, 'cr-perm-chat-all', 'cr-perm-chat-none');
+    modal.style.display = 'flex';
+}
+
+async function saveChatRoomSettings(channelId) {
+    const modal = document.getElementById('chat-room-settings-modal');
+    const cr = modal._cr;
+    const name = document.getElementById('cr-settings-name').value.trim();
+    if (!name) { alert('방 이름을 입력해주세요'); return; }
+
+    let imageUrl = cr.image_url || null;
+    if (modal._imgFile) {
+        const ext = modal._imgFile.name.split('.').pop();
+        const fileName = `chatrooms/${_me.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('post-images').upload(fileName, modal._imgFile, { upsert: false });
+        if (!upErr) {
+            const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
+            imageUrl = pub.publicUrl;
+        }
+    }
+
+    await supabase.from('channel_rooms').update({ name, image_url: imageUrl }).eq('id', cr.id);
+
+    // 권한 저장
+    await supabase.from('chat_room_permissions').delete().eq('chat_room_id', cr.id);
+    const { data: members } = await supabase.from('room_members').select('user_id').eq('room_id', _currentServer.id);
+    const permInserts = (members || []).map(m => ({
+        chat_room_id: cr.id,
+        user_id: m.user_id,
+        can_view: modal._viewSet.size === 0 ? true : modal._viewSet.has(m.user_id),
+        can_chat: modal._chatSet.size === 0 ? true : modal._chatSet.has(m.user_id)
+    }));
+    if (permInserts.length > 0) await supabase.from('chat_room_permissions').insert(permInserts);
+
+    modal.style.display = 'none';
+    showToast(`#${name} 방 설정이 저장됐어요.`);
+    await loadChatRoomList(channelId, true);
+}
+
+/* ─────────────────────────────────────────
+   방 추가 모달 (500루나)
+───────────────────────────────────────── */
+let _addRoomTargetChannel = null;
+
+function openAddChatRoomModal(ch) {
+    _addRoomTargetChannel = ch;
+    document.getElementById('add-chatroom-name').value = '';
+    document.getElementById('add-chatroom-modal').style.display = 'flex';
+}
+
+async function addChatRoom() {
+    const name = document.getElementById('add-chatroom-name').value.trim();
+    if (!name) { alert('방 이름을 입력해주세요'); return; }
+    if (!_addRoomTargetChannel) return;
+
+    const COST = 500;
+    const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
+    const myTokens = tokenData?.amount ?? 0;
+    if (myTokens < COST) {
+        alert(`방 추가에는 ${COST} 루나가 필요해요. (보유: ${myTokens} 루나)`);
+        return;
+    }
+    if (!confirm(`방 추가에 ${COST} 루나가 소모됩니다. 계속할까요?`)) return;
+
+    const confirmBtn = document.getElementById('confirm-add-chatroom');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '추가 중...';
+
+    const { error } = await supabase.from('channel_rooms').insert({
+        channel_id: _addRoomTargetChannel.id,
+        name,
+        created_by: _me.id
+    });
+
+    if (error) {
+        alert('방 추가 실패: ' + error.message);
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '추가';
+        return;
+    }
+
+    await supabase.from('user_tokens').update({ amount: myTokens - COST }).eq('user_id', _me.id);
+
+    // 모달 닫기
+    document.getElementById('add-chatroom-modal').style.display = 'none';
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '추가';
+
+    showToast(`#${name} 방이 추가됐어요! (${COST} 루나 소모)`);
+
+    // 새로고침 없이 즉시 반영
+    await loadChatRoomList(_addRoomTargetChannel.id, true);
+}
+
+/* ─────────────────────────────────────────
+   채널 추가 (1500루나)
+───────────────────────────────────────── */
+async function addChannelWithToken() {
+    const name = document.getElementById('channel-name-input').value.trim();
+    if (!name || !_currentServer) { alert('채널 이름을 입력해주세요'); return; }
+
+    const COST = 1500;
+    const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
+    const myTokens = tokenData?.amount ?? 0;
+    if (myTokens < COST) {
+        alert(`채널 추가에는 ${COST} 루나가 필요해요. (보유: ${myTokens} 루나)`);
+        return;
+    }
+    if (!confirm(`채널 추가에 ${COST} 루나가 소모됩니다. 계속할까요?`)) return;
+
+    const confirmBtn = document.getElementById('confirm-add-channel');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '추가 중...';
+
+    const { data: newCh, error: chErr } = await supabase.from('message_channels')
+        .insert({ room_id: _currentServer.id, name, created_by: _me.id })
+        .select().single();
+
+    if (chErr || !newCh) {
+        alert('채널 추가 실패');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '추가';
+        return;
+    }
+
+    // 기본 방 1개 자동 생성
+    await supabase.from('channel_rooms').insert({
+        channel_id: newCh.id,
+        name: '일반',
+        created_by: _me.id
+    });
+
+    await supabase.from('user_tokens').update({ amount: myTokens - COST }).eq('user_id', _me.id);
+
+    document.getElementById('add-channel-modal').style.display = 'none';
+    document.getElementById('channel-name-input').value = '';
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '추가';
+
+    showToast(`#${name} 채널이 추가됐어요! (${COST} 루나 소모)`);
+    await loadChannelList(_currentServer.id, true);
+}
+
+/* ─────────────────────────────────────────
+   채널 컨텍스트 메뉴
+───────────────────────────────────────── */
+let _menuEl = null;
+function openChannelMenu(ch, isOwner, btn, serverId) {
+    if (_menuEl) { _menuEl.remove(); _menuEl = null; }
+    const rect = btn.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.className = 'ch-context-menu';
+    menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;left:${rect.left}px;z-index:2000;`;
+    menu.innerHTML = `
+        ${isOwner ? `
+        <button class="ch-menu-item" data-action="rename">
+            <span class="material-symbols-rounded">edit</span>채널 이름 변경
+        </button>
+        <button class="ch-menu-item danger" data-action="delete">
+            <span class="material-symbols-rounded">delete</span>채널 삭제
+        </button>` : ''}`;
+
+    menu.querySelectorAll('.ch-menu-item').forEach(item => {
+        item.addEventListener('click', async () => {
+            const action = item.dataset.action;
+            menu.remove(); _menuEl = null;
+            if (action === 'rename') {
+                const newName = prompt('새 채널 이름:', ch.name);
+                if (newName && newName.trim()) {
+                    await supabase.from('message_channels').update({ name: newName.trim() }).eq('id', ch.id);
+                    await loadChannelList(serverId, true);
+                }
+            } else if (action === 'delete') {
+                if (confirm(`"${ch.name}" 채널을 삭제할까요? 안의 방과 채팅도 모두 삭제됩니다.`)) {
+                    // 채널 안 방들 먼저 삭제
+                    const { data: crs } = await supabase.from('channel_rooms').select('id').eq('channel_id', ch.id);
+                    for (const cr of (crs || [])) {
+                        await supabase.from('messages').delete().eq('chat_room_id', cr.id);
+                    }
+                    await supabase.from('channel_rooms').delete().eq('channel_id', ch.id);
+                    await supabase.from('message_channels').delete().eq('id', ch.id);
+                    await loadChannelList(serverId, true);
+                    document.getElementById('chat-welcome').style.display = 'flex';
+                    document.getElementById('chat-room').style.display = 'none';
+                }
+            }
+        });
+    });
+
+    document.body.appendChild(menu);
+    _menuEl = menu;
+    setTimeout(() => document.addEventListener('click', () => { menu.remove(); _menuEl = null; }, { once: true }), 0);
+}
+
+/* ─────────────────────────────────────────
+   채팅방 만들기 (무료)
+───────────────────────────────────────── */
+async function createRoom() {
+    const name = document.getElementById('room-name-input').value.trim();
+    if (!name) { alert('방 이름을 입력해주세요'); return; }
+
+    const confirmBtn = document.getElementById('confirm-create-room');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '만드는 중...';
+
+    const memberIds = [..._selectedInviteIds, _me.id];
+
+    let imageUrl = null;
+    if (_selectedServerImgFile) {
+        const ext = _selectedServerImgFile.name.split('.').pop();
+        const fileName = `rooms/${_me.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('post-images').upload(fileName, _selectedServerImgFile, { upsert: false });
+        if (!upErr) {
+            const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
+            imageUrl = pub.publicUrl;
+        }
+    }
+
+    const { data: room, error } = await supabase.from('message_rooms')
+        .insert({ name, type: 'room', created_by: _me.id, member_count: memberIds.length, image_url: imageUrl })
+        .select().single();
+
+    if (error || !room) {
+        alert('방 만들기 실패');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '방 만들기';
+        return;
+    }
+
+    const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid }));
+    await supabase.from('room_members').insert(memberInserts);
+
+    // 기본 채널 "일반" 1개 자동 생성
+    const { data: newCh } = await supabase.from('message_channels')
+        .insert({ room_id: room.id, name: '일반', created_by: _me.id })
+        .select().single();
+
+    // 기본 채널 안에 방 "일반채팅" 1개 자동 생성
+    if (newCh) {
+        await supabase.from('channel_rooms').insert({
+            channel_id: newCh.id,
+            name: '일반채팅',
+            created_by: _me.id
+        });
+    }
+
+    document.getElementById('create-room-modal').style.display = 'none';
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '방 만들기';
+
+    await loadServerList();
+    openServerView({ ...room, image_url: imageUrl });
+}
+
+/* ─────────────────────────────────────────
+   메시지 로드 (chat_room_id 기반)
+───────────────────────────────────────── */
+async function loadMessages(chatRoomId) {
     const container = document.getElementById('chat-messages');
     container.innerHTML = '<div class="messages-loader"><span class="material-symbols-rounded animation-spin">sync</span></div>';
 
-    let query = supabase.from('messages').select('*, profiles(id, username, avatar_url)').order('created_at', { ascending: true }).limit(100);
-    if (channelId) query = query.eq('channel_id', channelId);
-    else if (roomId) query = query.eq('room_id', roomId).is('channel_id', null);
+    const { data: messages } = await supabase
+        .from('messages')
+        .select('*, profiles(id, username, avatar_url)')
+        .eq('chat_room_id', chatRoomId)
+        .order('created_at', { ascending: true })
+        .limit(100);
 
-    const { data: messages } = await query;
     container.innerHTML = '';
     renderChatStartNotice(container);
     if (messages && messages.length > 0) renderMessages(container, messages);
@@ -300,13 +780,9 @@ async function loadMessages(roomId, channelId) {
 function renderChatStartNotice(container) {
     const notice = document.createElement('div');
     notice.className = 'chat-start-notice';
-    if (_currentChannel) {
-        notice.innerHTML = `<h3># ${escapeHtml(_currentChannel.name)}</h3><p>${escapeHtml(_currentRoom?.name || '')} 채널의 시작입니다.</p>`;
-    } else if (_currentRoom?.type === 'dm') {
-        notice.innerHTML = `
-            ${_currentRoom.avatar ? `<img src="${_currentRoom.avatar}" class="start-avatar">` : ''}
-            <h3>${escapeHtml(_currentRoom.name)}</h3>
-            <p>${escapeHtml(_currentRoom.name)}님과의 다이렉트 메시지 시작입니다.</p>`;
+    if (_currentChatRoom) {
+        notice.innerHTML = `<h3># ${escapeHtml(_currentChatRoom.name)}</h3>
+            <p>${escapeHtml(_currentServer?.name || '')} › ${escapeHtml(_currentChannel?.name || '')} 채널의 시작입니다.</p>`;
     }
     container.appendChild(notice);
 }
@@ -355,12 +831,14 @@ function renderMessages(container, messages) {
 /* ─────────────────────────────────────────
    실시간 구독
 ───────────────────────────────────────── */
-function subscribeToChannel(channelId) {
+function subscribeToChatRoom(chatRoomId) {
     if (_realtimeChannel) { supabase.removeChannel(_realtimeChannel); _realtimeChannel = null; }
-    _realtimeChannel = supabase.channel(`ch-${channelId}-${Date.now()}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` }, async (payload) => {
+    _realtimeChannel = supabase.channel(`cr-${chatRoomId}-${Date.now()}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_room_id=eq.${chatRoomId}` }, async (payload) => {
             const msg = payload.new;
             if (msg.user_id === _me.id) return;
+            // 알림 해제된 방이면 뱃지 업데이트 안 함
+            if (_mutedRooms.has(chatRoomId)) return;
             const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', msg.user_id).single();
             msg.profiles = profile;
             appendNewMessage(msg);
@@ -372,7 +850,7 @@ function subscribeToRoom(roomId) {
     _realtimeChannel = supabase.channel(`room-${roomId}-${Date.now()}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, async (payload) => {
             const msg = payload.new;
-            if (msg.user_id === _me.id || msg.channel_id) return;
+            if (msg.user_id === _me.id || msg.chat_room_id) return;
             const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', msg.user_id).single();
             msg.profiles = profile;
             appendNewMessage(msg);
@@ -425,33 +903,32 @@ async function sendMessage() {
     const content = input.value.trim();
     if (!content) return;
 
-    // 채널 채팅 권한 체크
-    if (_currentChannel) {
-        const canChat = await checkChatPermission(_currentChannel.id);
-        if (!canChat) { showToast('이 채널에서 메시지를 보낼 권한이 없어요.'); return; }
-    }
+    if (!_currentChatRoom && !_currentServer) return;
 
     input.value = '';
     input.style.height = 'auto';
 
-    // 즉시 표시
+    // 즉시 화면에 표시
     const fakeMsg = {
-        id: 'temp_' + Date.now(), user_id: _me.id, content,
+        id: 'temp_' + Date.now(),
+        user_id: _me.id,
+        content,
         created_at: new Date().toISOString(),
         profiles: { id: _me.id, username: _myProfile?.username || _me.email.split('@')[0], avatar_url: _myProfile?.avatar_url }
     };
     appendNewMessage(fakeMsg);
 
     const insertData = { user_id: _me.id, content };
-    if (_currentChannel) {
-        insertData.channel_id = _currentChannel.id;
-        insertData.room_id = _currentRoom.id;
-    } else if (_currentRoom) {
-        insertData.room_id = _currentRoom.id;
+    if (_currentChatRoom) {
+        insertData.chat_room_id = _currentChatRoom.id;
+        insertData.channel_id = _currentChannel?.id;
+        insertData.room_id = _currentServer?.id;
+    } else if (_currentServer) {
+        insertData.room_id = _currentServer.id;
     }
 
     await supabase.from('messages').insert(insertData);
-    if (_currentRoom) await supabase.from('message_rooms').update({ updated_at: new Date().toISOString() }).eq('id', _currentRoom.id);
+    if (_currentServer) await supabase.from('message_rooms').update({ updated_at: new Date().toISOString() }).eq('id', _currentServer.id);
 }
 
 /* ─────────────────────────────────────────
@@ -472,64 +949,14 @@ async function loadRoomMembers(roomId) {
 }
 
 /* ─────────────────────────────────────────
-   채팅방 만들기
-───────────────────────────────────────── */
-async function createRoom() {
-    const name = document.getElementById('room-name-input').value.trim();
-    if (!name) { alert('방 이름을 입력해주세요'); return; }
-
-    // 루나 확인
-    const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
-    const myTokens = tokenData?.amount ?? 0;
-    const COST = 1500;
-    if (myTokens < COST) {
-        alert(`채팅방 만들기에는 ${COST} 루나가 필요해요. (보유: ${myTokens} 루나)`);
-        return;
-    }
-    if (!confirm(`채팅방 만들기에 ${COST} 루나가 소모됩니다. 계속할까요?`)) return;
-
-    const memberIds = [..._selectedInviteIds, _me.id];
-
-    let imageUrl = null;
-    if (_selectedRoomImgFile) {
-        const ext = _selectedRoomImgFile.name.split('.').pop();
-        const fileName = `rooms/${_me.id}/${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('post-images').upload(fileName, _selectedRoomImgFile, { upsert: false });
-        if (!upErr) {
-            const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
-            imageUrl = pub.publicUrl;
-        }
-    }
-
-    const { data: room, error } = await supabase.from('message_rooms').insert({ name, type: 'room', created_by: _me.id, member_count: memberIds.length, image_url: imageUrl }).select().single();
-    if (error || !room) { alert('방 만들기 실패'); return; }
-
-    const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid }));
-    await supabase.from('room_members').insert(memberInserts);
-
-    // 기본 채널 1개 자동 생성
-    await supabase.from('message_channels').insert([
-        { room_id: room.id, name: '일반', created_by: _me.id }
-    ]);
-
-    // 루나 차감
-    await supabase.from('user_tokens').update({ amount: myTokens - COST }).eq('user_id', _me.id);
-
-    showToast(`채팅방이 만들어졌어요! (${COST} 루나 소모)`);
-    document.getElementById('create-room-modal').style.display = 'none';
-    await loadServerList();
-    openServerView({ ...room, image_url: imageUrl });
-}
-
-/* ─────────────────────────────────────────
-   방 설정
+   방 설정 저장 (모달)
 ───────────────────────────────────────── */
 async function saveRoomSettings() {
-    if (!_currentRoom) return;
+    if (!_currentServer) return;
     const name = document.getElementById('settings-name-input').value.trim();
     if (!name) { alert('방 이름을 입력해주세요'); return; }
 
-    let imageUrl = _currentRoom.image_url;
+    let imageUrl = _currentServer.image_url;
     if (_selectedSettingsImgFile) {
         const ext = _selectedSettingsImgFile.name.split('.').pop();
         const fileName = `rooms/${_me.id}/${Date.now()}.${ext}`;
@@ -540,28 +967,55 @@ async function saveRoomSettings() {
         }
     }
 
-    await supabase.from('message_rooms').update({ name, image_url: imageUrl }).eq('id', _currentRoom.id);
-    _currentRoom = { ..._currentRoom, name, image_url: imageUrl };
+    await supabase.from('message_rooms').update({ name, image_url: imageUrl }).eq('id', _currentServer.id);
+    _currentServer = { ..._currentServer, name, image_url: imageUrl };
     document.getElementById('room-settings-modal').style.display = 'none';
     await loadServerList();
-    openServerView(_currentRoom);
+    openServerView(_currentServer);
 }
 
 /* ─────────────────────────────────────────
-   채널 추가
+   DM
 ───────────────────────────────────────── */
-async function addChannel() {
-    const name = document.getElementById('channel-name-input').value.trim();
-    if (!name || !_currentRoom) { alert('채널 이름을 입력해주세요'); return; }
-    await supabase.from('message_channels').insert({ room_id: _currentRoom.id, name, created_by: _me.id });
-    document.getElementById('add-channel-modal').style.display = 'none';
-    document.getElementById('channel-name-input').value = '';
-    await loadChannelList(_currentRoom.id, _currentRoom.created_by === _me.id);
+async function openDmRoom(room, meta) {
+    _currentServer = { ...room, ...meta, type: 'dm' };
+    _currentChannel = null;
+    _currentChatRoom = null;
+
+    document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+    const activeEl = document.querySelector(`[data-room-id="${room.id}"]`);
+    if (activeEl) activeEl.classList.add('active');
+
+    document.getElementById('chat-welcome').style.display = 'none';
+    const chatRoomEl = document.getElementById('chat-room');
+    chatRoomEl.style.display = 'flex';
+
+    const avatarEl = document.getElementById('chat-room-avatar');
+    if (meta.avatar) { avatarEl.src = meta.avatar; avatarEl.style.display = 'block'; }
+    else { avatarEl.style.display = 'none'; }
+    document.getElementById('chat-channel-hash').style.display = 'none';
+    document.getElementById('chat-room-name').textContent = meta.name;
+    document.getElementById('chat-room-sub').textContent = '다이렉트 메시지';
+    document.getElementById('msg-input').placeholder = `${meta.name}에게 메시지 보내기`;
+    document.getElementById('members-panel').style.display = 'none';
+
+    await loadMessages(null);
+    subscribeToRoom(room.id);
 }
 
-/* ─────────────────────────────────────────
-   DM 시작
-───────────────────────────────────────── */
+function switchToDmView() {
+    document.getElementById('dm-sidebar').style.display = 'flex';
+    document.getElementById('dm-sidebar').style.flexDirection = 'column';
+    document.getElementById('dm-sidebar').style.flex = '1';
+    document.getElementById('dm-sidebar').style.overflow = 'hidden';
+    document.getElementById('room-sidebar').style.display = 'none';
+    document.querySelectorAll('.server-icon').forEach(el => el.classList.remove('active'));
+    document.getElementById('server-home-btn').classList.add('active');
+    _currentServer = null;
+    _currentChannel = null;
+    _currentChatRoom = null;
+}
+
 function openNewDmModal() {
     document.getElementById('dm-user-search').value = '';
     renderDmUserList('');
@@ -601,7 +1055,9 @@ async function startDm(user) {
         openDmRoom(existingRoom, { name: user.username, avatar });
         return;
     }
-    const { data: newRoom, error } = await supabase.from('message_rooms').insert({ name: `dm_${_me.id}_${user.id}`, type: 'dm', created_by: _me.id, member_count: 2 }).select().single();
+    const { data: newRoom, error } = await supabase.from('message_rooms')
+        .insert({ name: `dm_${_me.id}_${user.id}`, type: 'dm', created_by: _me.id, member_count: 2 })
+        .select().single();
     if (error || !newRoom) { console.error(error); return; }
     await supabase.from('room_members').insert([{ room_id: newRoom.id, user_id: _me.id }, { room_id: newRoom.id, user_id: user.id }]);
     switchToDmView();
@@ -672,7 +1128,8 @@ async function checkMsgBadge(userId) {
     let unread = 0;
     for (const m of memberships) {
         const since = m.last_read_at || '1970-01-01';
-        const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('room_id', m.room_id).neq('user_id', userId).gt('created_at', since);
+        const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true })
+            .eq('room_id', m.room_id).neq('user_id', userId).gt('created_at', since);
         unread += count || 0;
     }
     badge.textContent = unread > 9 ? '9+' : unread;
@@ -680,16 +1137,36 @@ async function checkMsgBadge(userId) {
 }
 
 /* ─────────────────────────────────────────
+   이미지 업로드
+───────────────────────────────────────── */
+async function uploadChatImage(file) {
+    if (!_me || !_currentChatRoom) return;
+    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 이미지만 가능합니다.'); return; }
+    const ext = file.name.split('.').pop();
+    const fileName = `chat/${_me.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('post-images').upload(fileName, file, { upsert: false });
+    if (error) { alert('이미지 업로드 실패'); return; }
+    const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
+    const insertData = {
+        user_id: _me.id,
+        content: `![이미지](${pub.publicUrl})`,
+        chat_room_id: _currentChatRoom.id,
+        channel_id: _currentChannel?.id,
+        room_id: _currentServer?.id
+    };
+    await supabase.from('messages').insert(insertData);
+}
+
+/* ─────────────────────────────────────────
    이벤트 바인딩
 ───────────────────────────────────────── */
 function bindEvents() {
-    // 서버 홈 (DM 뷰)
     document.getElementById('server-home-btn').addEventListener('click', switchToDmView);
 
-    // 새 채팅방
+    // 새 채팅방 (무료)
     document.getElementById('new-room-btn').addEventListener('click', () => {
         _selectedInviteIds.clear();
-        _selectedRoomImgFile = null;
+        _selectedServerImgFile = null;
         document.getElementById('room-name-input').value = '';
         document.getElementById('invite-search').value = '';
         document.getElementById('selected-members').innerHTML = '';
@@ -701,23 +1178,20 @@ function bindEvents() {
     document.getElementById('cancel-room-modal').addEventListener('click', () => document.getElementById('create-room-modal').style.display = 'none');
     document.getElementById('confirm-create-room').addEventListener('click', createRoom);
     document.getElementById('invite-search').addEventListener('input', e => renderInviteList(e.target.value));
-
-    // 방 이미지 업로드
     document.getElementById('room-img-file').addEventListener('change', e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        _selectedRoomImgFile = file;
+        const file = e.target.files[0]; if (!file) return;
+        _selectedServerImgFile = file;
         const url = URL.createObjectURL(file);
         document.getElementById('room-img-label').innerHTML = `<img src="${url}"><span>변경</span>`;
     });
 
     // 방 설정
     document.getElementById('room-settings-btn').addEventListener('click', () => {
-        if (!_currentRoom) return;
-        document.getElementById('settings-name-input').value = _currentRoom.name;
+        if (!_currentServer) return;
+        document.getElementById('settings-name-input').value = _currentServer.name;
         _selectedSettingsImgFile = null;
         const label = document.getElementById('settings-img-label');
-        if (_currentRoom.image_url) label.innerHTML = `<img src="${_currentRoom.image_url}"><span>변경</span>`;
+        if (_currentServer.image_url) label.innerHTML = `<img src="${_currentServer.image_url}"><span>변경</span>`;
         else label.innerHTML = '<span class="material-symbols-rounded">add_photo_alternate</span><span>사진 변경</span>';
         document.getElementById('room-settings-modal').style.display = 'flex';
     });
@@ -725,14 +1199,13 @@ function bindEvents() {
     document.getElementById('cancel-settings-modal').addEventListener('click', () => document.getElementById('room-settings-modal').style.display = 'none');
     document.getElementById('confirm-settings').addEventListener('click', saveRoomSettings);
     document.getElementById('settings-img-file').addEventListener('change', e => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const file = e.target.files[0]; if (!file) return;
         _selectedSettingsImgFile = file;
         const url = URL.createObjectURL(file);
         document.getElementById('settings-img-label').innerHTML = `<img src="${url}"><span>변경</span>`;
     });
 
-    // 채널 추가
+    // 채널 추가 (1500루나)
     document.getElementById('add-channel-btn').addEventListener('click', () => {
         document.getElementById('channel-name-input').value = '';
         document.getElementById('add-channel-modal').style.display = 'flex';
@@ -740,6 +1213,11 @@ function bindEvents() {
     document.getElementById('close-channel-modal').addEventListener('click', () => document.getElementById('add-channel-modal').style.display = 'none');
     document.getElementById('cancel-channel-modal').addEventListener('click', () => document.getElementById('add-channel-modal').style.display = 'none');
     document.getElementById('confirm-add-channel').addEventListener('click', addChannelWithToken);
+
+    // 방 추가 모달 (500루나)
+    document.getElementById('close-chatroom-modal').addEventListener('click', () => document.getElementById('add-chatroom-modal').style.display = 'none');
+    document.getElementById('cancel-chatroom-modal').addEventListener('click', () => document.getElementById('add-chatroom-modal').style.display = 'none');
+    document.getElementById('confirm-add-chatroom').addEventListener('click', addChatRoom);
 
     // DM
     document.getElementById('new-dm-btn').addEventListener('click', openNewDmModal);
@@ -752,8 +1230,15 @@ function bindEvents() {
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
     });
 
-    // 전송
+    // 메시지 전송
     document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('msg-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+    document.getElementById('msg-input').addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 140) + 'px';
+    });
 
     // 이미지 첨부
     const fileInput = document.createElement('input');
@@ -764,13 +1249,6 @@ function bindEvents() {
         if (e.target.files[0]) uploadChatImage(e.target.files[0]);
         fileInput.value = '';
     });
-    document.getElementById('msg-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-    });
-    document.getElementById('msg-input').addEventListener('input', function () {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 140) + 'px';
-    });
 
     // 멤버 패널 토글
     document.getElementById('members-btn').addEventListener('click', () => {
@@ -778,7 +1256,7 @@ function bindEvents() {
         const isHidden = panel.style.display === 'none';
         panel.style.display = isHidden ? 'flex' : 'none';
         if (isHidden) panel.style.flexDirection = 'column';
-        if (isHidden && _currentRoom?.id) loadRoomMembers(_currentRoom.id);
+        if (isHidden && _currentServer?.id) loadRoomMembers(_currentServer.id);
     });
 
     // DM 검색
@@ -801,7 +1279,6 @@ function bindEvents() {
    유틸
 ───────────────────────────────────────── */
 function renderMarkdownSafe(text) {
-    // 안전한 마크다운만 렌더링
     let html = escapeHtml(text);
     html = html.replace(/^### (.+)$/gm, '<h3 style="font-size:0.95rem;font-weight:700;margin:4px 0">$1</h3>');
     html = html.replace(/^## (.+)$/gm, '<h2 style="font-size:1.05rem;font-weight:800;margin:4px 0">$1</h2>');
@@ -827,280 +1304,10 @@ function formatDate(date) {
     if (date.toDateString() === yesterday.toDateString()) return '어제';
     return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 }
-
-/* ─── 채널 컨텍스트 메뉴 ─── */
-let _menuEl = null;
-function openChannelMenu(ch, isOwner, btn) {
-    closeChannelMenu();
-    const rect = btn.getBoundingClientRect();
-    const menu = document.createElement('div');
-    menu.className = 'ch-context-menu';
-    menu.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${rect.left}px;z-index:2000;`;
-    const isMuted = _mutedChannels.has(ch.id);
-    menu.innerHTML = `
-        <button class="ch-menu-item" data-action="mute">
-            <span class="material-symbols-rounded">${isMuted ? 'notifications' : 'notifications_off'}</span>${isMuted ? '알림 받기' : '알림 해제'}
-        </button>
-        ${isOwner ? `
-        <div class="ch-menu-divider"></div>
-        <button class="ch-menu-item" data-action="settings">
-            <span class="material-symbols-rounded">settings</span>설정
-        </button>
-        <button class="ch-menu-item danger" data-action="delete">
-            <span class="material-symbols-rounded">delete</span>채널 삭제
-        </button>` : ''}
-    `;
-    menu.querySelectorAll('.ch-menu-item').forEach(item => {
-        item.addEventListener('click', async () => {
-            const action = item.dataset.action;
-            closeChannelMenu();
-            if (action === 'mute') {
-                if (_mutedChannels.has(ch.id)) {
-                    _mutedChannels.delete(ch.id);
-                    showToast(`#${ch.name} 알림이 다시 켜졌어요.`);
-                } else {
-                    _mutedChannels.add(ch.id);
-                    showToast(`#${ch.name} 알림이 해제됐어요.`);
-                }
-                // 로컬스토리지 저장
-                localStorage.setItem('mutedChannels', JSON.stringify([..._mutedChannels]));
-                await loadChannelList(_currentRoom.id, isOwner);
-            } else if (action === 'settings') {
-                openChannelSettings(ch);
-            } else if (action === 'delete') {
-                if (confirm(`"${ch.name}" 채널을 삭제할까요?`)) {
-                    await supabase.from('messages').delete().eq('channel_id', ch.id);
-                    await supabase.from('message_channels').delete().eq('id', ch.id);
-                    await loadChannelList(_currentRoom.id, true);
-                    document.getElementById('chat-welcome').style.display = 'flex';
-                    document.getElementById('chat-room').style.display = 'none';
-                }
-            }
-        });
-    });
-    document.body.appendChild(menu);
-    _menuEl = menu;
-    setTimeout(() => document.addEventListener('click', closeChannelMenu, { once: true }), 0);
-}
-function closeChannelMenu() {
-    if (_menuEl) { _menuEl.remove(); _menuEl = null; }
-}
-
-/* ─── 채널 추가 (루나 소모) ─── */
-async function addChannelWithToken() {
-    const name = document.getElementById('channel-name-input').value.trim();
-    if (!name || !_currentRoom) { alert('채널 이름을 입력해주세요'); return; }
-
-    // 토큰 확인
-    const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
-    const myTokens = tokenData?.amount ?? 0;
-    const COST = 500; // 채널 추가: 500루나
-
-    if (myTokens < COST) {
-        alert(`채널 추가에는 ${COST} 루나가 필요해요. (보유: ${myTokens} 루나)`);
-        return;
-    }
-    if (!confirm(`채널 추가에 ${COST} 루나가 소모됩니다. 계속할까요?`)) return;
-
-    const { data: newChannel, error: chErr } = await supabase.from('message_channels')
-        .insert({ room_id: _currentRoom.id, name, created_by: _me.id })
-        .select().single();
-    if (chErr) { alert('채널 추가 실패: ' + chErr.message); return; }
-
-    // 루나 차감
-    await supabase.from('user_tokens').update({ amount: myTokens - COST }).eq('user_id', _me.id);
-
-    showToast(`#${name} 채널이 추가됐어요! (${COST} 루나 소모)`);
-    document.getElementById('add-channel-modal').style.display = 'none';
-    document.getElementById('channel-name-input').value = '';
-    await loadChannelList(_currentRoom.id, true);
-}
-
-/* ─── 채팅 이미지 업로드 ─── */
-async function uploadChatImage(file) {
-    if (!_me || (!_currentChannel && !_currentRoom)) return;
-    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 이미지만 가능합니다.'); return; }
-    const ext = file.name.split('.').pop();
-    const fileName = `chat/${_me.id}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('post-images').upload(fileName, file, { upsert: false });
-    if (error) { alert('이미지 업로드 실패'); return; }
-    const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
-    const imgUrl = pub.publicUrl;
-
-    const insertData = { user_id: _me.id, content: `![이미지](${imgUrl})` };
-    if (_currentChannel) { insertData.channel_id = _currentChannel.id; insertData.room_id = _currentRoom.id; }
-    else if (_currentRoom) { insertData.room_id = _currentRoom.id; }
-    await supabase.from('messages').insert(insertData);
-}
-
-/* ─── 채널 설정 ─── */
-async function openChannelSettings(ch) {
-    _channelSettingsTarget = ch;
-    _selectedChSettingsImgFile = null;
-
-    // 모달이 없으면 동적 생성
-    let modal = document.getElementById('channel-settings-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'channel-settings-modal';
-        modal.className = 'modal-overlay';
-        modal.style.display = 'none';
-        modal.innerHTML = `
-        <div class="modal modal-wide">
-            <div class="modal-header">
-                <h3 id="ch-settings-title">채널 설정</h3>
-                <button class="icon-btn" id="close-ch-settings"><span class="material-symbols-rounded">close</span></button>
-            </div>
-            <div class="modal-body">
-                <label class="modal-label">채널 사진</label>
-                <label for="ch-settings-img-file" class="room-img-upload-label" id="ch-settings-img-label">
-                    <span class="material-symbols-rounded">add_photo_alternate</span><span>사진 추가</span>
-                </label>
-                <input type="file" id="ch-settings-img-file" accept="image/*" style="display:none;">
-
-                <label class="modal-label" style="margin-top:16px;">채널 이름 <span style="color:var(--primary)">*</span></label>
-                <input type="text" id="ch-settings-name" class="modal-input" maxlength="20" placeholder="채널 이름">
-
-                <div class="modal-section-title" style="margin-top:20px;">채팅 볼 수 있는 멤버</div>
-                <p class="modal-section-desc">선택된 멤버만 이 채널을 볼 수 있어요. 아무도 선택 안 하면 전체 공개.</p>
-                <div style="display:flex;gap:8px;margin-bottom:8px;">
-                    <button class="btn-secondary btn-sm" id="ch-perm-view-all">전체 선택</button>
-                    <button class="btn-secondary btn-sm" id="ch-perm-view-none">전체 해제</button>
-                </div>
-                <ul id="ch-perm-view-list" class="perm-member-list"></ul>
-
-                <div class="modal-section-title" style="margin-top:20px;">채팅 칠 수 있는 멤버</div>
-                <p class="modal-section-desc">선택된 멤버만 이 채널에서 메시지를 보낼 수 있어요. 아무도 선택 안 하면 전체 허용.</p>
-                <div style="display:flex;gap:8px;margin-bottom:8px;">
-                    <button class="btn-secondary btn-sm" id="ch-perm-chat-all">전체 선택</button>
-                    <button class="btn-secondary btn-sm" id="ch-perm-chat-none">전체 해제</button>
-                </div>
-                <ul id="ch-perm-chat-list" class="perm-member-list"></ul>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="cancel-ch-settings">취소</button>
-                <button class="btn-primary" id="confirm-ch-settings">저장</button>
-            </div>
-        </div>`;
-        document.body.appendChild(modal);
-
-        document.getElementById('close-ch-settings').addEventListener('click', () => { modal.style.display = 'none'; });
-        document.getElementById('cancel-ch-settings').addEventListener('click', () => { modal.style.display = 'none'; });
-        document.getElementById('confirm-ch-settings').addEventListener('click', saveChannelSettings);
-        document.getElementById('ch-settings-img-file').addEventListener('change', e => {
-            const file = e.target.files[0]; if (!file) return;
-            _selectedChSettingsImgFile = file;
-            const url = URL.createObjectURL(file);
-            document.getElementById('ch-settings-img-label').innerHTML = `<img src="${url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;"><span>변경</span>`;
-        });
-        modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
-    }
-
-    // 채널 이름 세팅
-    document.getElementById('ch-settings-title').textContent = `#${ch.name} 설정`;
-    document.getElementById('ch-settings-name').value = ch.name;
-
-    // 채널 이미지 세팅
-    const imgLabel = document.getElementById('ch-settings-img-label');
-    if (ch.image_url) {
-        imgLabel.innerHTML = `<img src="${ch.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;"><span>변경</span>`;
-    } else {
-        imgLabel.innerHTML = '<span class="material-symbols-rounded">add_photo_alternate</span><span>사진 추가</span>';
-    }
-
-    // 방 멤버 로드
-    const { data: members } = await supabase.from('room_members').select('user_id, profiles(username, avatar_url)').eq('room_id', _currentRoom.id);
-
-    // 현재 권한 로드
-    const { data: permData } = await supabase.from('channel_permissions').select('*').eq('channel_id', ch.id);
-    const viewAllowed = new Set((permData || []).filter(p => p.can_view).map(p => p.user_id));
-    const chatAllowed = new Set((permData || []).filter(p => p.can_chat).map(p => p.user_id));
-
-    function renderPermList(listId, selectedSet, btnAllId, btnNoneId) {
-        const list = document.getElementById(listId);
-        list.innerHTML = '';
-        (members || []).forEach(m => {
-            const uname = m.profiles?.username || m.user_id.slice(0,8);
-            const avatar = m.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${m.user_id}`;
-            const isSelected = selectedSet.has(m.user_id);
-            const li = document.createElement('li');
-            li.className = `perm-member-item${isSelected ? ' selected' : ''}`;
-            li.dataset.userId = m.user_id;
-            li.innerHTML = `<img src="${avatar}" class="invite-avatar"><span class="invite-username">${escapeHtml(uname)}${m.user_id === _me.id ? ' (나)' : ''}</span>${isSelected ? '<span class="material-symbols-rounded invite-check">check_circle</span>' : ''}`;
-            li.addEventListener('click', () => {
-                if (selectedSet.has(m.user_id)) selectedSet.delete(m.user_id);
-                else selectedSet.add(m.user_id);
-                renderPermList(listId, selectedSet, btnAllId, btnNoneId);
-            });
-            list.appendChild(li);
-        });
-        document.getElementById(btnAllId).onclick = () => {
-            (members || []).forEach(m => selectedSet.add(m.user_id));
-            renderPermList(listId, selectedSet, btnAllId, btnNoneId);
-        };
-        document.getElementById(btnNoneId).onclick = () => {
-            selectedSet.clear();
-            renderPermList(listId, selectedSet, btnAllId, btnNoneId);
-        };
-    }
-
-    // Set 참조를 modal에 저장
-    modal._viewAllowed = viewAllowed;
-    modal._chatAllowed = chatAllowed;
-
-    renderPermList('ch-perm-view-list', viewAllowed, 'ch-perm-view-all', 'ch-perm-view-none');
-    renderPermList('ch-perm-chat-list', chatAllowed, 'ch-perm-chat-all', 'ch-perm-chat-none');
-
-    modal.style.display = 'flex';
-}
-
-async function saveChannelSettings() {
-    const ch = _channelSettingsTarget;
-    if (!ch) return;
-    const name = document.getElementById('ch-settings-name').value.trim();
-    if (!name) { alert('채널 이름을 입력해주세요'); return; }
-
-    const modal = document.getElementById('channel-settings-modal');
-    const viewAllowed = modal._viewAllowed;
-    const chatAllowed = modal._chatAllowed;
-
-    let imageUrl = ch.image_url || null;
-    if (_selectedChSettingsImgFile) {
-        const ext = _selectedChSettingsImgFile.name.split('.').pop();
-        const fileName = `channels/${_me.id}/${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from('post-images').upload(fileName, _selectedChSettingsImgFile, { upsert: false });
-        if (!upErr) {
-            const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
-            imageUrl = pub.publicUrl;
-        }
-    }
-
-    // 채널 정보 업데이트
-    await supabase.from('message_channels').update({ name, image_url: imageUrl }).eq('id', ch.id);
-
-    // 권한 저장 (기존 삭제 후 재삽입)
-    await supabase.from('channel_permissions').delete().eq('channel_id', ch.id);
-
-    // 방 멤버 전체 가져오기
-    const { data: members } = await supabase.from('room_members').select('user_id').eq('room_id', _currentRoom.id);
-    const permInserts = (members || []).map(m => ({
-        channel_id: ch.id,
-        user_id: m.user_id,
-        can_view: viewAllowed.size === 0 ? true : viewAllowed.has(m.user_id),
-        can_chat: chatAllowed.size === 0 ? true : chatAllowed.has(m.user_id)
-    }));
-    if (permInserts.length > 0) await supabase.from('channel_permissions').insert(permInserts);
-
-    modal.style.display = 'none';
-    showToast(`#${name} 채널 설정이 저장됐어요.`);
-    await loadChannelList(_currentRoom.id, true);
-}
-
-/* ─── 메시지 전송 시 권한 체크 ─── */
-async function checkChatPermission(channelId) {
-    if (!channelId) return true;
-    const { data } = await supabase.from('channel_permissions')
-        .select('can_chat').eq('channel_id', channelId).eq('user_id', _me.id).single();
-    if (!data) return true; // 권한 데이터 없으면 허용
-    return data.can_chat;
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'ug-toast'; t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
 }
