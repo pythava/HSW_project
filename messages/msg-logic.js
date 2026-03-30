@@ -71,11 +71,24 @@ function renderServerIcons() {
         btn.dataset.roomId = room.id;
         btn.title = room.name;
         if (room.image_url) {
-            btn.innerHTML = `<img src="${room.image_url}" alt="${room.name}" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\\"material-symbols-rounded\\">${room.name.charAt(0)}</span>'">`;
+        if (room.image_url) {
+            const img = document.createElement('img');
+            img.src = room.image_url;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;';
+            img.onerror = function() {
+                this.remove();
+                const sp = document.createElement('span');
+                sp.style.cssText = 'font-size:13px;font-weight:800;color:var(--text-2)';
+                sp.textContent = room.name.substring(0,2);
+                btn.appendChild(sp);
+            };
+            btn.appendChild(img);
         } else {
-            btn.innerHTML = `<span style="font-size:14px;font-weight:800;color:var(--text-2)">${room.name.substring(0,2)}</span>`;
+            const sp = document.createElement('span');
+            sp.style.cssText = 'font-size:13px;font-weight:800;color:var(--text-2)';
+            sp.textContent = room.name.substring(0,2);
+            btn.appendChild(sp);
         }
-        btn.addEventListener('click', () => openServerView(room));
         container.appendChild(btn);
     });
 }
@@ -164,10 +177,19 @@ async function loadChannelList(roomId, isOwner) {
 
     channels.forEach(ch => {
         const li = document.createElement('li');
-        li.className = 'channel-item';
+        li.className = 'channel-item channel-item-hover';
         li.dataset.channelId = ch.id;
-        li.innerHTML = `<span class="material-symbols-rounded channel-hash">tag</span><span class="channel-name">${escapeHtml(ch.name)}</span>`;
-        li.addEventListener('click', () => openChannel(ch));
+        li.innerHTML = `
+            <span class="material-symbols-rounded channel-hash">tag</span>
+            <span class="channel-name">${escapeHtml(ch.name)}</span>
+            <button class="ch-more-btn" data-channel-id="${ch.id}" data-channel-name="${escapeHtml(ch.name)}" title="설정">
+                <span class="material-symbols-rounded">more_horiz</span>
+            </button>`;
+        li.querySelector('.channel-name').addEventListener('click', () => openChannel(ch));
+        li.querySelector('.ch-more-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openChannelMenu(ch, isOwner, e.currentTarget);
+        });
         channelListEl.appendChild(li);
     });
 
@@ -294,7 +316,7 @@ function renderMessages(container, messages) {
         if (isContinuation) {
             el.className = 'msg-continuation';
             el.dataset.userId = msg.user_id;
-            el.innerHTML = `<span class="msg-time-stub">${timeStr}</span><span class="msg-text">${escapeHtml(msg.content)}</span>`;
+            el.innerHTML = `<span class="msg-time-stub">${timeStr}</span><span class="msg-text">${renderMarkdownSafe(msg.content)}</span>`;
         } else {
             el.className = 'msg-group';
             el.dataset.userId = msg.user_id;
@@ -305,7 +327,7 @@ function renderMessages(container, messages) {
                         <span class="msg-author">${escapeHtml(username)}</span>
                         <span class="msg-timestamp">${timeStr}</span>
                     </div>
-                    <span class="msg-text">${escapeHtml(msg.content)}</span>
+                    <span class="msg-text">${renderMarkdownSafe(msg.content)}</span>
                 </div>`;
         }
         container.appendChild(el);
@@ -360,7 +382,7 @@ function appendNewMessage(msg) {
     if (isContinuation) {
         el.className = 'msg-continuation';
         el.dataset.userId = msg.user_id;
-        el.innerHTML = `<span class="msg-time-stub">${timeStr}</span><span class="msg-text">${escapeHtml(msg.content)}</span>`;
+        el.innerHTML = `<span class="msg-time-stub">${timeStr}</span><span class="msg-text">${renderMarkdownSafe(msg.content)}</span>`;
     } else {
         el.className = 'msg-group';
         el.dataset.userId = msg.user_id;
@@ -371,7 +393,7 @@ function appendNewMessage(msg) {
                     <span class="msg-author">${escapeHtml(username)}</span>
                     <span class="msg-timestamp">${timeStr}</span>
                 </div>
-                <span class="msg-text">${escapeHtml(msg.content)}</span>
+                <span class="msg-text">${renderMarkdownSafe(msg.content)}</span>
             </div>`;
     }
     container.appendChild(el);
@@ -450,7 +472,10 @@ async function createRoom() {
     const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid }));
     await supabase.from('room_members').insert(memberInserts);
     // 기본 채널 생성
-    await supabase.from('message_channels').insert({ room_id: room.id, name: '일반', created_by: _me.id });
+    await supabase.from('message_channels').insert([
+            { room_id: room.id, name: '채팅채널1', created_by: _me.id },
+            { room_id: room.id, name: '채팅채널2', created_by: _me.id }
+        ]);
 
     document.getElementById('create-room-modal').style.display = 'none';
     await loadServerList();
@@ -675,7 +700,7 @@ function bindEvents() {
     });
     document.getElementById('close-channel-modal').addEventListener('click', () => document.getElementById('add-channel-modal').style.display = 'none');
     document.getElementById('cancel-channel-modal').addEventListener('click', () => document.getElementById('add-channel-modal').style.display = 'none');
-    document.getElementById('confirm-add-channel').addEventListener('click', addChannel);
+    document.getElementById('confirm-add-channel').addEventListener('click', addChannelWithToken);
 
     // DM
     document.getElementById('new-dm-btn').addEventListener('click', openNewDmModal);
@@ -690,6 +715,16 @@ function bindEvents() {
 
     // 전송
     document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+    // 이미지 첨부
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+    document.querySelector('.attach-btn')?.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+        if (e.target.files[0]) uploadChatImage(e.target.files[0]);
+        fileInput.value = '';
+    });
     document.getElementById('msg-input').addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
     });
@@ -726,6 +761,19 @@ function bindEvents() {
 /* ─────────────────────────────────────────
    유틸
 ───────────────────────────────────────── */
+function renderMarkdownSafe(text) {
+    // 안전한 마크다운만 렌더링
+    let html = escapeHtml(text);
+    html = html.replace(/^### (.+)$/gm, '<h3 style="font-size:0.95rem;font-weight:700;margin:4px 0">$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2 style="font-size:1.05rem;font-weight:800;margin:4px 0">$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1 style="font-size:1.15rem;font-weight:800;margin:4px 0">$1</h1>');
+    html = html.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    html = html.replace(/`(.+?)`/g, '<code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;font-size:0.85em;color:#c084fc">$1</code>');
+    return html;
+}
+
 function escapeHtml(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -739,4 +787,99 @@ function formatDate(date) {
     if (date.toDateString() === today.toDateString()) return '오늘';
     if (date.toDateString() === yesterday.toDateString()) return '어제';
     return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+/* ─── 채널 컨텍스트 메뉴 ─── */
+let _menuEl = null;
+function openChannelMenu(ch, isOwner, btn) {
+    closeChannelMenu();
+    const rect = btn.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.className = 'ch-context-menu';
+    menu.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${rect.left}px;z-index:2000;`;
+    menu.innerHTML = `
+        <button class="ch-menu-item" data-action="mute">
+            <span class="material-symbols-rounded">notifications_off</span>알림 해제
+        </button>
+        ${isOwner ? `
+        <div class="ch-menu-divider"></div>
+        <button class="ch-menu-item" data-action="rename">
+            <span class="material-symbols-rounded">edit</span>채널 이름 변경
+        </button>
+        <button class="ch-menu-item danger" data-action="delete">
+            <span class="material-symbols-rounded">delete</span>채널 삭제
+        </button>` : ''}
+    `;
+    menu.querySelectorAll('.ch-menu-item').forEach(item => {
+        item.addEventListener('click', async () => {
+            const action = item.dataset.action;
+            closeChannelMenu();
+            if (action === 'rename') {
+                const name = prompt('새 채널 이름:', ch.name);
+                if (name && name.trim()) {
+                    await supabase.from('message_channels').update({ name: name.trim() }).eq('id', ch.id);
+                    await loadChannelList(_currentRoom.id, true);
+                }
+            } else if (action === 'delete') {
+                if (confirm(`"${ch.name}" 채널을 삭제할까요?`)) {
+                    await supabase.from('messages').delete().eq('channel_id', ch.id);
+                    await supabase.from('message_channels').delete().eq('id', ch.id);
+                    await loadChannelList(_currentRoom.id, true);
+                    document.getElementById('chat-welcome').style.display = 'flex';
+                    document.getElementById('chat-room').style.display = 'none';
+                }
+            } else if (action === 'mute') {
+                alert('알림이 해제됐어요.');
+            }
+        });
+    });
+    document.body.appendChild(menu);
+    _menuEl = menu;
+    setTimeout(() => document.addEventListener('click', closeChannelMenu, { once: true }), 0);
+}
+function closeChannelMenu() {
+    if (_menuEl) { _menuEl.remove(); _menuEl = null; }
+}
+
+/* ─── 채널 추가 (루나 소모) ─── */
+async function addChannelWithToken() {
+    const name = document.getElementById('channel-name-input').value.trim();
+    if (!name || !_currentRoom) { alert('채널 이름을 입력해주세요'); return; }
+
+    // 토큰 확인
+    const { data: tokenData } = await supabase.from('user_tokens').select('amount').eq('user_id', _me.id).single();
+    const myTokens = tokenData?.amount ?? 0;
+    const { count: chCount } = await supabase.from('message_channels').select('*', {count:'exact',head:true}).eq('room_id', _currentRoom.id);
+    const cost = chCount >= 2 ? 3000 : 0; // 기본 2개 무료, 추가는 3000루나
+
+    if (cost > 0 && myTokens < cost) {
+        alert(`채널 추가에는 ${cost} 루나가 필요해요. (보유: ${myTokens} 루나)`);
+        return;
+    }
+    if (cost > 0 && !confirm(`채널 추가에 ${cost} 루나가 소모됩니다. 계속할까요?`)) return;
+
+    await supabase.from('message_channels').insert({ room_id: _currentRoom.id, name, created_by: _me.id });
+    if (cost > 0) await supabase.from('user_tokens').update({ amount: myTokens - cost }).eq('user_id', _me.id);
+
+    document.getElementById('add-channel-modal').style.display = 'none';
+    document.getElementById('channel-name-input').value = '';
+    const { count: newCount } = await supabase.from('message_channels').select('*', {count:'exact',head:true}).eq('room_id', _currentRoom.id);
+    await loadChannelList(_currentRoom.id, true);
+}
+
+/* ─── 채팅 이미지 업로드 ─── */
+async function uploadChatImage(file) {
+    if (!_me || (!_currentChannel && !_currentRoom)) return;
+    if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 이미지만 가능합니다.'); return; }
+    const ext = file.name.split('.').pop();
+    const fileName = `chat/${_me.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('post-images').upload(fileName, file, { upsert: false });
+    if (error) { alert('이미지 업로드 실패'); return; }
+    const { data: pub } = supabase.storage.from('post-images').getPublicUrl(fileName);
+    const imgUrl = pub.publicUrl;
+
+    const insertData = { user_id: _me.id, content: `![이미지](${imgUrl})` };
+    if (_currentChannel) { insertData.channel_id = _currentChannel.id; insertData.room_id = _currentRoom.id; }
+    else if (_currentRoom) { insertData.room_id = _currentRoom.id; }
+    await supabase.from('messages').insert(insertData);
 }
