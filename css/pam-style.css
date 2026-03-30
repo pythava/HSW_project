@@ -379,9 +379,9 @@
     background: var(--bg-1);
     border: 1px solid var(--border);
     border-radius: 20px;
-    width: 460px;
-    max-width: 92vw;
-    max-height: 85vh;
+    width: 540px;
+    max-width: 94vw;
+    max-height: 88vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -558,8 +558,10 @@
     gap: 14px;
 }
 .token-icon {
-    font-size: 2rem;
-    animation: florist-spin 3s ease-in-out infinite;
+    font-size: 1.5rem;
+    color: var(--primary);
+    font-weight: 900;
+    line-height: 1;
 }
 .token-label {
     font-size: 0.75rem;
