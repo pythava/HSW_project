@@ -811,3 +811,253 @@
     font-weight: 600;
     margin-top: 8px;
 }
+
+/* ─────────────────────────────────────────
+   PAM SPACE 배너
+───────────────────────────────────────── */
+.msg-pam-banner {
+    margin: 8px 10px 4px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary-alpha), rgba(168,85,247,0.12));
+    border: 1px solid rgba(168,85,247,0.25);
+    overflow: hidden;
+}
+.pam-banner-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    text-decoration: none;
+    color: var(--text-1);
+    transition: background 0.15s;
+}
+.pam-banner-link:hover { background: rgba(168,85,247,0.1); }
+.pam-banner-link > .material-symbols-rounded:first-child {
+    font-size: 22px;
+    color: var(--primary);
+    flex-shrink: 0;
+}
+.pam-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+}
+.pam-banner-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: 0.04em;
+}
+.pam-banner-sub {
+    font-size: 0.72rem;
+    color: var(--text-3);
+}
+.pam-banner-arrow {
+    font-size: 18px;
+    color: var(--text-3);
+    flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────
+   채널 그룹 (채널 > 방 3단계)
+───────────────────────────────────────── */
+.channel-group {
+    list-style: none;
+    margin-bottom: 4px;
+}
+.channel-group-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 6px 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+}
+.channel-group-header:hover { background: var(--bg-2); color: var(--text-1); }
+.channel-group-header:hover .ch-header-actions { opacity: 1; }
+
+.ch-fold-icon {
+    font-size: 16px !important;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+}
+.channel-group-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ch-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    margin-left: auto;
+}
+.ch-add-room-btn, .ch-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-2);
+    padding: 0;
+    transition: background 0.15s, color 0.15s;
+}
+.ch-add-room-btn:hover, .ch-more-btn:hover {
+    background: var(--bg-0);
+    color: var(--text-0);
+}
+.ch-add-room-btn .material-symbols-rounded,
+.ch-more-btn .material-symbols-rounded {
+    font-size: 15px;
+}
+
+/* 채널 안 방 목록 */
+.channel-room-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.chat-room-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px 5px 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 0.86rem;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+}
+.chat-room-item:hover { background: var(--bg-2); color: var(--text-1); }
+.chat-room-item.active { background: var(--primary-alpha); color: var(--primary); font-weight: 600; }
+
+.cr-icon {
+    font-size: 15px !important;
+    color: inherit;
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+.cr-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cr-more-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-2);
+    padding: 0;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+.cr-more-btn .material-symbols-rounded { font-size: 15px; }
+.cr-more-btn:hover { background: var(--bg-0); color: var(--text-0); }
+.chat-room-item:hover .cr-more-btn { display: flex; }
+
+/* 알림 해제 아이콘 */
+.ch-muted-icon {
+    font-size: 13px !important;
+    color: var(--text-3);
+    flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────
+   추가 모달 스타일
+───────────────────────────────────────── */
+.modal-desc {
+    font-size: 0.83rem;
+    color: var(--text-3);
+    line-height: 1.6;
+    margin-bottom: 4px;
+}
+
+.cost-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    background: var(--primary-alpha);
+    border-radius: 20px;
+    font-size: 0.82rem;
+    color: var(--primary);
+    font-weight: 600;
+}
+.free-badge {
+    background: rgba(34,197,94,0.12);
+    color: #22c55e;
+}
+
+/* 권한 설정 */
+.modal-wide {
+    max-width: 520px;
+    width: 95vw;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+.modal-section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+}
+.modal-section-desc {
+    font-size: 0.82rem;
+    color: var(--text-3);
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+.perm-member-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+.perm-member-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    background: var(--bg-2);
+}
+.perm-member-item:hover { background: var(--bg-3, var(--bg-1)); }
+.perm-member-item.selected { background: var(--primary-alpha); }
+.btn-sm {
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    border-radius: 6px;
+}
