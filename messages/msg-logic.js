@@ -70,7 +70,7 @@ function renderServerIcons() {
         btn.className = 'server-icon';
         btn.dataset.roomId = room.id;
         btn.title = room.name;
-        if (room.image_url) {
+
         if (room.image_url) {
             const img = document.createElement('img');
             img.src = room.image_url;
