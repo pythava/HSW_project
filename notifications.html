@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./css/global.css">
     <link rel="stylesheet" href="./css/main-style.css">
     <link rel="stylesheet" href="./css/notifications-style.css">
+    <link rel="stylesheet" href="./css/pam-style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -31,12 +32,21 @@
     </nav>
 
     <main class="ug-main-feed">
-        <header class="main-header" style="padding:20px 28px;border-bottom:1px solid var(--border);">
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-                <h1 style="font-size:1.3rem;font-weight:800;">알림</h1>
-                <button id="mark-all-read" style="font-size:0.82rem;color:var(--primary);font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid var(--primary);">모두 읽음</button>
+            <div class="pam-banner">
+                <div class="pam-banner-content">
+                    <div class="pam-banner-left">
+                        <span class="pam-banner-icon">✦</span>
+                        <span class="pam-banner-label">알림</span>
+                    </div>
+                    <p class="pam-banner-desc">가든의 새로운 소식</p>
+                </div>
             </div>
-        </header>
+            <div class="pam-controls" style="border-bottom:1px solid var(--border);justify-content:space-between;">
+                <div class="pam-tabs">
+                    <button class="pam-tab active">전체 <span class="tab-spark">✦</span></button>
+                </div>
+                <button id="mark-all-read" style="font-size:0.8rem;color:var(--primary);font-weight:700;padding:6px 14px;border-radius:20px;border:1px solid var(--primary);background:var(--primary-alpha);">모두 읽음</button>
+            </div>
         <div id="noti-list" class="feed-scroll-area" style="padding:12px 0;">
             <div class="feed-loader">
                 <span class="material-symbols-rounded animation-spin">sync</span>
