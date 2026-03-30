@@ -71,6 +71,12 @@ function renderServerIcons() {
         btn.dataset.roomId = room.id;
         btn.title = room.name;
 
+        // --- 클릭 이벤트 추가 시작 ---
+        btn.addEventListener('click', () => {
+            openServerView(room);
+        });
+        // --- 클릭 이벤트 추가 끝 ---
+
         if (room.image_url) {
             const img = document.createElement('img');
             img.src = room.image_url;
