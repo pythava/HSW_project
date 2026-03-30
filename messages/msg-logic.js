@@ -378,7 +378,7 @@ function openChatRoomMenu(cr, channelId, isOwner, btn) {
                 openChatRoomSettings(cr, channelId);
             } else if (action === 'delete') {
                 if (confirm(`"${cr.name}" 방을 삭제할까요? 채팅 내역도 모두 삭제됩니다.`)) {
-                    await supabase.from('messages').delete().eq('chat_room_id', cr.id);
+                    await supabase.from('messages').delete().eq('channel_id', cr.id);
                     await supabase.from('channel_rooms').delete().eq('id', cr.id);
                     if (_currentChatRoom?.id === cr.id) {
                         document.getElementById('chat-welcome').style.display = 'flex';
@@ -475,8 +475,8 @@ async function openChatRoomSettings(cr, channelId) {
         .select('user_id, profiles(username, avatar_url)').eq('room_id', _currentServer.id);
 
     // 기존 권한 로드
-    const { data: permData } = await supabase.from('chat_room_permissions')
-        .select('*').eq('chat_room_id', cr.id);
+    const { data: permData } = await supabase.from('channel_permissions')
+        .select('*').eq('channel_id', cr.id);
     const viewSet = new Set((permData || []).filter(p => p.can_view).map(p => p.user_id));
     const chatSet = new Set((permData || []).filter(p => p.can_chat).map(p => p.user_id));
     modal._viewSet = viewSet;
@@ -527,15 +527,15 @@ async function saveChatRoomSettings(channelId) {
     await supabase.from('channel_rooms').update({ name, image_url: imageUrl }).eq('id', cr.id);
 
     // 권한 저장
-    await supabase.from('chat_room_permissions').delete().eq('chat_room_id', cr.id);
+    await supabase.from('channel_permissions').delete().eq('channel_id', cr.id);
     const { data: members } = await supabase.from('room_members').select('user_id').eq('room_id', _currentServer.id);
     const permInserts = (members || []).map(m => ({
-        chat_room_id: cr.id,
+        channel_id: cr.id,
         user_id: m.user_id,
         can_view: modal._viewSet.size === 0 ? true : modal._viewSet.has(m.user_id),
         can_chat: modal._chatSet.size === 0 ? true : modal._chatSet.has(m.user_id)
     }));
-    if (permInserts.length > 0) await supabase.from('chat_room_permissions').insert(permInserts);
+    if (permInserts.length > 0) await supabase.from('channel_permissions').insert(permInserts);
 
     modal.style.display = 'none';
     showToast(`#${name} 방 설정이 저장됐어요.`);
@@ -680,7 +680,7 @@ function openChannelMenu(ch, isOwner, btn, serverId) {
                     // 채널 안 방들 먼저 삭제
                     const { data: crs } = await supabase.from('channel_rooms').select('id').eq('channel_id', ch.id);
                     for (const cr of (crs || [])) {
-                        await supabase.from('messages').delete().eq('chat_room_id', cr.id);
+                        await supabase.from('messages').delete().eq('channel_id', cr.id);
                     }
                     await supabase.from('channel_rooms').delete().eq('channel_id', ch.id);
                     await supabase.from('message_channels').delete().eq('id', ch.id);
@@ -758,16 +758,20 @@ async function createRoom() {
 }
 
 /* ─────────────────────────────────────────
-   메시지 로드 (chat_room_id 기반)
+   메시지 로드 (room_id + channel_id 기반)
+   channel_rooms.id를 channel_id로, message_rooms.id를 room_id로 사용
 ───────────────────────────────────────── */
 async function loadMessages(chatRoomId) {
     const container = document.getElementById('chat-messages');
     container.innerHTML = '<div class="messages-loader"><span class="material-symbols-rounded animation-spin">sync</span></div>';
 
+    if (!chatRoomId) { container.innerHTML = ''; renderChatStartNotice(container); return; }
+
+    // channel_rooms.id를 channel_id 컬럼에 저장해서 구분
     const { data: messages } = await supabase
         .from('messages')
         .select('*, profiles(id, username, avatar_url)')
-        .eq('chat_room_id', chatRoomId)
+        .eq('channel_id', chatRoomId)
         .order('created_at', { ascending: true })
         .limit(100);
 
@@ -834,10 +838,9 @@ function renderMessages(container, messages) {
 function subscribeToChatRoom(chatRoomId) {
     if (_realtimeChannel) { supabase.removeChannel(_realtimeChannel); _realtimeChannel = null; }
     _realtimeChannel = supabase.channel(`cr-${chatRoomId}-${Date.now()}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_room_id=eq.${chatRoomId}` }, async (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${chatRoomId}` }, async (payload) => {
             const msg = payload.new;
             if (msg.user_id === _me.id) return;
-            // 알림 해제된 방이면 뱃지 업데이트 안 함
             if (_mutedRooms.has(chatRoomId)) return;
             const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', msg.user_id).single();
             msg.profiles = profile;
@@ -850,7 +853,7 @@ function subscribeToRoom(roomId) {
     _realtimeChannel = supabase.channel(`room-${roomId}-${Date.now()}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, async (payload) => {
             const msg = payload.new;
-            if (msg.user_id === _me.id || msg.chat_room_id) return;
+            if (msg.user_id === _me.id || msg.channel_id) return;
             const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', msg.user_id).single();
             msg.profiles = profile;
             appendNewMessage(msg);
@@ -920,8 +923,8 @@ async function sendMessage() {
 
     const insertData = { user_id: _me.id, content };
     if (_currentChatRoom) {
-        insertData.chat_room_id = _currentChatRoom.id;
-        insertData.channel_id = _currentChannel?.id;
+        // channel_rooms.id를 channel_id에 저장 (기존 messages 테이블 컬럼 재활용)
+        insertData.channel_id = _currentChatRoom.id;
         insertData.room_id = _currentServer?.id;
     } else if (_currentServer) {
         insertData.room_id = _currentServer.id;
@@ -1150,8 +1153,7 @@ async function uploadChatImage(file) {
     const insertData = {
         user_id: _me.id,
         content: `![이미지](${pub.publicUrl})`,
-        chat_room_id: _currentChatRoom.id,
-        channel_id: _currentChannel?.id,
+        channel_id: _currentChatRoom.id,
         room_id: _currentServer?.id
     };
     await supabase.from('messages').insert(insertData);
