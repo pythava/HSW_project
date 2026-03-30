@@ -44,15 +44,13 @@
     <!-- 메시지 레이아웃 -->
     <div class="msg-layout">
 
-        <!-- ① 서버(방) 아이콘 리스트 (디스코드 맨 왼쪽) -->
+        <!-- ① 서버(방) 아이콘 리스트 -->
         <div class="msg-server-list">
             <div class="server-list-top">
-                <!-- DM 홈 버튼 -->
                 <button class="server-icon server-home active" id="server-home-btn" title="다이렉트 메시지">
                     <span class="material-symbols-rounded">forum</span>
                 </button>
                 <div class="server-divider"></div>
-                <!-- 방 아이콘들 (동적 생성) -->
                 <div id="server-icons"></div>
             </div>
             <div class="server-list-bottom">
@@ -76,6 +74,17 @@
                     <span class="material-symbols-rounded search-icon">search</span>
                     <input type="text" id="dm-search" placeholder="대화 검색" autocomplete="off">
                 </div>
+                <!-- PAM SPACE 배너 -->
+                <div class="msg-pam-banner">
+                    <a href="../pam.html" class="pam-banner-link">
+                        <span class="material-symbols-rounded">rocket_launch</span>
+                        <div class="pam-banner-text">
+                            <span class="pam-banner-title">PAM SPACE</span>
+                            <span class="pam-banner-sub">팸 커뮤니티 탐색하기</span>
+                        </div>
+                        <span class="material-symbols-rounded pam-banner-arrow">chevron_right</span>
+                    </a>
+                </div>
                 <div class="channel-section-label"><span>다이렉트 메시지</span></div>
                 <ul id="dm-list" class="channel-list">
                     <li class="channel-loading"><span class="material-symbols-rounded animation-spin">sync</span></li>
@@ -95,7 +104,7 @@
                 </div>
                 <div class="channel-section-label">
                     <span>채팅 채널</span>
-                    <button class="add-channel-btn" id="add-channel-btn" style="display:none;" title="채널 추가">
+                    <button class="add-channel-btn" id="add-channel-btn" style="display:none;" title="채널 추가 (1500루나)">
                         <span class="material-symbols-rounded">add</span>
                     </button>
                 </div>
@@ -175,7 +184,7 @@
     </div>
 </div>
 
-<!-- 새 채팅방 만들기 모달 -->
+<!-- 새 채팅방 만들기 모달 (무료) -->
 <div class="modal-overlay" id="create-room-modal" style="display:none;">
     <div class="modal">
         <div class="modal-header">
@@ -183,7 +192,6 @@
             <button class="icon-btn" id="close-room-modal"><span class="material-symbols-rounded">close</span></button>
         </div>
         <div class="modal-body">
-            <!-- 방 사진 -->
             <label class="modal-label">방 사진</label>
             <label for="room-img-file" class="room-img-upload-label" id="room-img-label">
                 <span class="material-symbols-rounded">add_photo_alternate</span>
@@ -203,9 +211,9 @@
             <div class="selected-members" id="selected-members"></div>
         </div>
         <div class="modal-footer">
-            <div class="cost-badge" style="margin-right:auto;">
-                <span class="material-symbols-rounded" style="font-size:16px;">toll</span>
-                채팅방 생성: <strong>1500 루나</strong>
+            <div class="cost-badge free-badge">
+                <span class="material-symbols-rounded" style="font-size:16px;">check_circle</span>
+                채팅방 생성: <strong>무료</strong>
             </div>
             <button class="btn-secondary" id="cancel-room-modal">취소</button>
             <button class="btn-primary" id="confirm-create-room">방 만들기</button>
@@ -217,7 +225,7 @@
 <div class="modal-overlay" id="room-settings-modal" style="display:none;">
     <div class="modal">
         <div class="modal-header">
-            <h3>방 설정</h3>
+            <h3>채팅방 설정</h3>
             <button class="icon-btn" id="close-settings-modal"><span class="material-symbols-rounded">close</span></button>
         </div>
         <div class="modal-body">
@@ -227,7 +235,6 @@
                 <span>사진 변경</span>
             </label>
             <input type="file" id="settings-img-file" accept="image/*" style="display:none;">
-
             <label class="modal-label" style="margin-top:16px;">방 이름</label>
             <input type="text" id="settings-name-input" class="modal-input" maxlength="30">
         </div>
@@ -238,7 +245,7 @@
     </div>
 </div>
 
-<!-- 채널 추가 모달 -->
+<!-- 채널 추가 모달 (1500루나) -->
 <div class="modal-overlay" id="add-channel-modal" style="display:none;">
     <div class="modal">
         <div class="modal-header">
@@ -246,16 +253,39 @@
             <button class="icon-btn" id="close-channel-modal"><span class="material-symbols-rounded">close</span></button>
         </div>
         <div class="modal-body">
-            <label class="modal-label">채널 이름</label>
+            <p class="modal-desc">채널은 여러 개의 방을 담는 그룹이에요.<br>채널 추가 시 기본 방 1개가 자동으로 만들어져요.</p>
+            <label class="modal-label" style="margin-top:12px;">채널 이름 <span style="color:var(--primary)">*</span></label>
             <input type="text" id="channel-name-input" placeholder="예: 일반, 공지, 게임..." class="modal-input" maxlength="20">
-            <div class="cost-badge">
+            <div class="cost-badge" style="margin-top:12px;">
                 <span class="material-symbols-rounded" style="font-size:16px;">toll</span>
-                채널 추가 비용: <strong>500 루나</strong>
+                채널 추가: <strong>1500 루나</strong>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn-secondary" id="cancel-channel-modal">취소</button>
             <button class="btn-primary" id="confirm-add-channel">추가</button>
+        </div>
+    </div>
+</div>
+
+<!-- 방 추가 모달 (500루나) -->
+<div class="modal-overlay" id="add-chatroom-modal" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>방 추가</h3>
+            <button class="icon-btn" id="close-chatroom-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="modal-body">
+            <label class="modal-label">방 이름 <span style="color:var(--primary)">*</span></label>
+            <input type="text" id="add-chatroom-name" placeholder="예: 자유채팅, 공지..." class="modal-input" maxlength="20">
+            <div class="cost-badge" style="margin-top:12px;">
+                <span class="material-symbols-rounded" style="font-size:16px;">toll</span>
+                방 추가: <strong>500 루나</strong>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="cancel-chatroom-modal">취소</button>
+            <button class="btn-primary" id="confirm-add-chatroom">추가</button>
         </div>
     </div>
 </div>
