@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (_myTokens < 100) {
         document.getElementById('pam-submit-btn').disabled = true;
-        document.getElementById('pam-submit-btn').innerHTML = '🌸 잎이 부족해요 (100 잎 필요)';
+        document.getElementById('pam-submit-btn').innerHTML = '✦ 루나이 부족해요 (100 루나 필요)';
     }
 
     bindEvents();
@@ -103,7 +103,7 @@ async function submitPam() {
 
     if (!name) { alert('팸 이름을 입력해주세요.'); return; }
     if (hasPw && pw.length !== 6) { alert('비밀번호는 6자리여야 합니다.'); return; }
-    if (_myTokens < 100) { alert('잎이 부족합니다.'); return; }
+    if (_myTokens < 100) { alert('루나이 부족합니다.'); return; }
 
     const btn = document.getElementById('pam-submit-btn');
     btn.disabled = true;
@@ -143,12 +143,12 @@ async function submitPam() {
         // 토큰 차감
         await supabase.from('user_tokens').update({ amount: _myTokens - 100 }).eq('user_id', _me.id);
 
-        alert('팸이 만들어졌어요! 🌸');
+        alert('팸이 만들어졌어요! ✦');
         location.href = '../pam.html';
     } catch (err) {
         console.error(err);
         alert('팸 만들기 실패: ' + err.message);
         btn.disabled = false;
-        btn.innerHTML = '🌸 100 잎으로 팸 만들기';
+        btn.innerHTML = '✦ 100 루나으로 팸 만들기';
     }
 }
