@@ -931,6 +931,8 @@ function subscribeToChatRoom(chatRoomId) {
             const msg = payload.new;
             if (msg.user_id === _me.id) return;
             if (_mutedRooms.has(chatRoomId)) return;
+            // 볼 권한 없으면 실시간 메시지도 표시하지 않음
+            if (_currentChatRoom?._canView === false) return;
             const { data: profile } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', msg.user_id).single();
             msg.profiles = profile;
             appendNewMessage(msg);
