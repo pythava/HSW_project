@@ -53,27 +53,38 @@
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
     transition: background 0.15s;
+    flex-wrap: nowrap;
+    min-height: 64px;
 }
 .settings-row:last-child { border-bottom: none; }
 .settings-row:hover { background: rgba(255,255,255,0.02); }
 
-.settings-row-info { flex: 1; min-width: 0; }
+.settings-row-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
 .settings-row-label {
     display: block;
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--text-0);
     margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .danger-text { color: var(--error); }
 .settings-row-sub {
     display: block;
     font-size: 0.78rem;
     color: var(--text-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 280px;
+    white-space: normal;        /* 줄바꿈 허용 */
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: unset;
+    max-width: 100%;            /* 고정 px 제거 */
+    line-height: 1.45;
 }
 
 /* 버튼들 */
