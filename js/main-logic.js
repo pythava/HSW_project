@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadFollowingIds(user.id);
         checkNotiBadge(user.id);
         checkMsgBadge(user.id);
-        // 내 프로필 캐시
         const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         _currentProfile = p;
     }
@@ -59,16 +58,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupMiniProfile();
 });
 
-/* ─── 팔로잉 목록 ─── */
 async function loadFollowingIds(userId) {
     const { data } = await supabase.from('follows').select('following_id').eq('follower_id', userId);
     _followingIds = new Set((data || []).map(f => f.following_id));
 }
 
-/* ─── 게시물 로드 ─── */
 async function fetchPosts(tab = '최신') {
     const feedContainer = document.getElementById('main-feed');
-    const loader = feedContainer.querySelector('.feed-loader');
 
     try {
         const user = await getCurrentUser();
@@ -134,7 +130,6 @@ async function fetchPosts(tab = '최신') {
     }
 }
 
-/* ─── Realtime ─── */
 function setupRealtime() {
     supabase.channel('realtime-posts')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
@@ -187,7 +182,6 @@ function setupRealtime() {
         .subscribe();
 }
 
-/* ─── 알림 뱃지 ─── */
 async function checkNotiBadge(userId) {
     const badge = document.getElementById('nav-noti-badge');
     if (!badge) return;
@@ -202,7 +196,6 @@ async function checkNotiBadge(userId) {
         .subscribe();
 }
 
-/* ─── 카드 생성 ─── */
 function createPostCard(post, isLiked = false, currentUser = null, recentComments = []) {
     const article = document.createElement('article');
     article.className = 'post-card';
@@ -318,7 +311,6 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         navigator.clipboard?.writeText(url).then(() => showToast('링크가 복사됐어요!'));
     });
 
-    // 점3개 메뉴
     const moreBtn = article.querySelector('.post-more-btn');
     const moreMenu = article.querySelector('.post-more-menu');
     moreBtn.addEventListener('click', (e) => {
@@ -334,7 +326,8 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     });
     article.querySelector('.delete-post-btn')?.addEventListener('click', async () => {
         moreMenu.style.display = 'none';
-        if (!await ugConfirm('이 게시물을 삭제할까요?', { title: '게시물 삭제', icon: 'delete', confirmText: '삭제', danger: true })) return;
+        const ok = await ugConfirm('이 게시물을 삭제할까요?', { title: '게시물 삭제', icon: 'delete', confirmText: '삭제', danger: true });
+        if (!ok) return;
         const { error } = await supabase.from('posts').delete().eq('id', post.id);
         if (error) { showToast('삭제 실패: ' + error.message); return; }
         article.style.animation = 'fadeOut 0.3s ease forwards';
@@ -346,11 +339,9 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         openReportModal(post.id);
     });
 
-    // 이름 클릭 → 프로필 페이지
     article.querySelector('.post-username').addEventListener('click', () => {
         window.location.href = `./profile/index.html?id=${profileId}`;
     });
-    // 아바타 클릭 → 미니프로필
     article.querySelector('.post-avatar').addEventListener('click', (e) => {
         e.stopPropagation();
         openMiniProfile(profileId);
@@ -359,7 +350,6 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     return article;
 }
 
-/* ─── 댓글 엘리먼트 ─── */
 function createCommentEl(c) {
     const div = document.createElement('div');
     div.className = 'comment-item';
@@ -392,7 +382,6 @@ function buildCommentsHtml(comments) {
     }).join('');
 }
 
-/* ─── 미니프로필 ─── */
 function setupMiniProfile() {
     document.addEventListener('click', (e) => {
         const panel = document.getElementById('mini-profile-panel');
@@ -442,7 +431,6 @@ async function openMiniProfile(userId) {
         btn.disabled = true;
         await toggleFollow(userId, btn);
         btn.disabled = false;
-        // 팔로워 수 즉시 반영
         const { data: updatedProfile } = await supabase.from('profiles').select('follower_count, following_count').eq('id', userId).single();
         const statsEls = panel.querySelectorAll('.mini-stats div strong');
         if (statsEls[1] && updatedProfile) statsEls[1].textContent = updatedProfile.follower_count || 0;
@@ -453,7 +441,6 @@ function closeMiniProfile() {
     document.getElementById('mini-profile-panel')?.classList.remove('open');
 }
 
-/* ─── 팔로우 토글 ─── */
 async function toggleFollow(targetUserId, btn) {
     const user = await getCurrentUser();
     if (!user) return;
@@ -463,20 +450,16 @@ async function toggleFollow(targetUserId, btn) {
         await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetUserId);
         _followingIds.delete(targetUserId);
         if (btn) { btn.textContent = '팔로우'; btn.classList.remove('following'); }
-        // follower_count 감소
         const { data: tProfile } = await supabase.from('profiles').select('follower_count').eq('id', targetUserId).single();
         await supabase.from('profiles').update({ follower_count: Math.max(0, (tProfile?.follower_count || 1) - 1) }).eq('id', targetUserId);
-        // following_count 감소
         const { data: myProfile2 } = await supabase.from('profiles').select('following_count').eq('id', user.id).single();
         await supabase.from('profiles').update({ following_count: Math.max(0, (myProfile2?.following_count || 1) - 1) }).eq('id', user.id);
     } else {
         await supabase.from('follows').insert({ follower_id: user.id, following_id: targetUserId });
         _followingIds.add(targetUserId);
         if (btn) { btn.textContent = '팔로잉'; btn.classList.add('following'); }
-        // follower_count 증가
         const { data: tProfile } = await supabase.from('profiles').select('follower_count').eq('id', targetUserId).single();
         await supabase.from('profiles').update({ follower_count: (tProfile?.follower_count || 0) + 1 }).eq('id', targetUserId);
-        // following_count 증가
         const { data: myProfileCnt } = await supabase.from('profiles').select('following_count').eq('id', user.id).single();
         await supabase.from('profiles').update({ following_count: (myProfileCnt?.following_count || 0) + 1 }).eq('id', user.id);
         const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
@@ -487,7 +470,6 @@ async function toggleFollow(targetUserId, btn) {
     }
 }
 
-/* ─── 신고 모달 ─── */
 const REPORT_REASONS = ['욕설 / 혐오 표현', '성적으로 부적절한 내용', '비하 / 차별', '스팸 / 광고', '개인정보 침해', '허위 정보', '기타'];
 
 function setupReportModal() {
@@ -515,7 +497,6 @@ function setupReportModal() {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeReportModal(); });
     document.getElementById('report-cancel-btn').addEventListener('click', closeReportModal);
     document.getElementById('report-submit-btn').addEventListener('click', submitReport);
-    // 기타 체크박스 토글
     overlay.addEventListener('change', (e) => {
         if (e.target.value === '기타') {
             document.getElementById('report-etc-wrap').style.display = e.target.checked ? 'block' : 'none';
@@ -555,7 +536,6 @@ async function submitReport() {
     showToast('신고가 접수됐어요. 검토 후 조치할게요.');
 }
 
-/* ─── 좋아요 ─── */
 async function handleLike(postId, btn) {
     const user = await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
@@ -599,7 +579,6 @@ async function handleLike(postId, btn) {
     }
 }
 
-/* ─── 댓글 로드/전송 ─── */
 async function loadComments(postId) {
     const listEl = document.getElementById(`comment-list-${postId}`);
     if (!listEl) return;
@@ -625,12 +604,20 @@ async function submitComment(postId, inputEl, currentUser) {
     const user = currentUser || await getCurrentUser();
     if (!user) { showToast('로그인이 필요합니다.'); return; }
 
+    inputEl.value = '';
+    inputEl.disabled = true;
+
     const listEl = document.getElementById(`comment-list-${postId}`);
+    const tempId = `temp-comment-${Date.now()}`;
+
     if (listEl) {
+        // "아직 댓글이 없어요" 메시지 제거
         listEl.querySelector('.no-comments')?.remove();
+
+        // 임시 댓글 DOM에 추가 (화면 점프 없이)
         const tempEl = document.createElement('div');
         tempEl.className = 'comment-item';
-        tempEl.id = `temp-comment-${Date.now()}`;
+        tempEl.id = tempId;
         const displayName = _currentProfile?.username || user.email?.split('@')[0] || user.id.slice(0, 8);
         const avatarSrc = _currentProfile?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
         tempEl.innerHTML = `
@@ -640,15 +627,33 @@ async function submitComment(postId, inputEl, currentUser) {
                 <p class="comment-text">${escapeHtml(text)}</p>
                 <span class="comment-time">방금 전</span>
             </div>`;
-        listEl.prepend(tempEl);
+
+        // prepend 대신 append — 스크롤이 아래로 자연스럽게 이어짐
+        listEl.appendChild(tempEl);
+
+        // 댓글 리스트 스크롤을 새 댓글 위치로 부드럽게 이동
+        requestAnimationFrame(() => {
+            listEl.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' });
+        });
     }
+
+    // 댓글 수 카운트 업데이트
     const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${postId}"] .comment-count-label`);
     if (countLabel) countLabel.textContent = (parseInt(countLabel.textContent) || 0) + 1;
-    inputEl.value = ''; inputEl.disabled = true;
 
     try {
-        const { error } = await supabase.from('comments').insert({ post_id: postId, user_id: user.id, content: text, created_at: new Date() });
+        const { data: inserted, error } = await supabase
+            .from('comments')
+            .insert({ post_id: postId, user_id: user.id, content: text, created_at: new Date() })
+            .select()
+            .single();
         if (error) throw error;
+
+        // 임시 댓글을 실제 댓글로 교체 (DOM 재렌더링 없이 id만 바꿔서 깜빡임/점프 방지)
+        const tempEl = document.getElementById(tempId);
+        if (tempEl) tempEl.removeAttribute('id');
+
+        // 알림 발송
         const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).single();
         if (post && post.user_id !== user.id) {
             const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single();
@@ -657,17 +662,18 @@ async function submitComment(postId, inputEl, currentUser) {
                 message: `@${myProfile?.username || '누군가'}님이 댓글을 달았어요: "${text.slice(0, 30)}${text.length > 30 ? '...' : ''}"`
             });
         }
-        loadComments(postId);
     } catch (err) {
         showToast('댓글 전송 실패: ' + err.message);
-        listEl?.querySelector('[id^="temp-comment-"]')?.remove();
+        // 실패 시 임시 댓글 제거 및 입력값 복원
+        document.getElementById(tempId)?.remove();
         inputEl.value = text;
+        if (countLabel) countLabel.textContent = Math.max(0, (parseInt(countLabel.textContent) || 1) - 1);
     } finally {
-        inputEl.disabled = false; inputEl.focus();
+        inputEl.disabled = false;
+        inputEl.focus();
     }
 }
 
-/* ─── 인기 검색어 ─── */
 async function fetchTrendingQueries() {
     const trendingList = document.getElementById('trending-queries');
     if (!trendingList) return;
@@ -688,7 +694,6 @@ async function fetchTrendingQueries() {
     }
 }
 
-/* ─── 유틸 ─── */
 function formatTime(date) {
     const diff = (Date.now() - date) / 1000;
     if (diff < 60)     return '방금 전';
@@ -708,7 +713,6 @@ function showToast(msg) {
     setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
 }
 
-/* ─── 캐러셀 이벤트 (이벤트 위임) ─── */
 document.addEventListener('click', (e) => {
     const prevBtn = e.target.closest('.carousel-prev');
     const nextBtn = e.target.closest('.carousel-next');
@@ -732,7 +736,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-/* ─── 메시지 뱃지 ─── */
 async function checkMsgBadge(userId) {
     const badge = document.getElementById('nav-msg-badge');
     if (!badge) return;
@@ -743,9 +746,7 @@ async function checkMsgBadge(userId) {
             .select('room_id')
             .eq('user_id', userId);
         if (!memberships || memberships.length === 0) { badge.style.display = 'none'; return; }
-        const roomIds = memberships.map(m => m.room_id);
 
-        // 읽지 않은 메시지: 내가 보내지 않은 최근 메시지
         const { data: membership2 } = await supabase
             .from('room_members')
             .select('room_id, last_read_at')
