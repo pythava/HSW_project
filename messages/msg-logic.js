@@ -981,7 +981,27 @@ async function sendMessage() {
     input.value = '';
     input.style.height = 'auto';
 
-    // 즉시 화면에 표시
+    const insertData = { user_id: _me.id, content };
+    if (_currentChatRoom) {
+        // channel_id = channel_rooms.id (FK: channel_rooms 참조)
+        insertData.channel_id = _currentChatRoom.id;
+        insertData.room_id = _currentServer?.id;
+    } else if (_currentServer) {
+        insertData.room_id = _currentServer.id;
+    }
+
+    const { error: msgErr } = await supabase.from('messages').insert(insertData);
+    if (msgErr) {
+        console.error('메시지 전송 실패:', msgErr);
+        showToast('메시지 전송에 실패했어요. (' + msgErr.code + ')');
+        // 실패 시 입력값 복원
+        input.value = content;
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+        return;
+    }
+
+    // 즉시 화면에 표시 (성공 후)
     const fakeMsg = {
         id: 'temp_' + Date.now(),
         user_id: _me.id,
@@ -991,16 +1011,6 @@ async function sendMessage() {
     };
     appendNewMessage(fakeMsg);
 
-    const insertData = { user_id: _me.id, content };
-    if (_currentChatRoom) {
-        // channel_rooms.id를 channel_id에 저장 (기존 messages 테이블 컬럼 재활용)
-        insertData.channel_id = _currentChatRoom.id;
-        insertData.room_id = _currentServer?.id;
-    } else if (_currentServer) {
-        insertData.room_id = _currentServer.id;
-    }
-
-    await supabase.from('messages').insert(insertData);
     if (_currentServer) await supabase.from('message_rooms').update({ updated_at: new Date().toISOString() }).eq('id', _currentServer.id);
 }
 
