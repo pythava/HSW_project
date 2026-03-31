@@ -38,12 +38,14 @@ function renderProfileCard(profile, user) {
     const username = profile?.username || user.email?.split('@')[0] || '알 수 없음';
     card.innerHTML = `
         <div class="spc-inner">
-            <img src="${avatar}" class="spc-avatar" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}'">
-            <div class="spc-name">@${escHtml(username)}</div>
-            <div class="spc-email">${escHtml(user.email || '')}</div>
-            <a href="../profile/index.html?id=${user.id}" class="spc-link">
-                <span class="material-symbols-rounded">open_in_new</span>내 프로필 보기
-            </a>
+            <div class="spc-row">
+                <img src="${avatar}" class="spc-avatar" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}'">
+                <div class="spc-info">
+                    <div class="spc-name">@${escHtml(username)}</div>
+                    <div class="spc-email">${escHtml(user.email || '')}</div>
+                </div>
+            </div>
+            <a href="../profile/index.html?id=${user.id}" class="spc-link">내 프로필 보기</a>
         </div>`;
 }
 
