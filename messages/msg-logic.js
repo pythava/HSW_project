@@ -397,11 +397,11 @@ async function openChatRoom(chatRoom, channelId) {
     subscribeToChatRoom(chatRoom.id);
     loadRoomMembers(_currentServer.id);
 
-    // 읽음 처리 (last_read_at 컬럼이 있을 때만 시도)
-    try {
-        await supabase.from('room_members').update({ last_read_at: new Date().toISOString() })
-            .eq('room_id', _currentServer.id).eq('user_id', _me.id);
-    } catch(e) { /* last_read_at 컬럼 없으면 무시 */ }
+    // 읽음 처리 - last_read_at 업데이트 후 뱃지 갱신
+    await supabase.from('room_members')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('room_id', _currentServer.id).eq('user_id', _me.id);
+    checkMsgBadge(_me.id);
 }
 
 /* ─────────────────────────────────────────
@@ -1259,14 +1259,41 @@ async function checkMsgBadge(userId) {
     const badge = document.getElementById('nav-msg-badge');
     if (!badge) return;
     try {
-        const { data: memberships, error: mErr } = await supabase.from('room_members').select('room_id').eq('user_id', userId);
-        if (mErr || !memberships || memberships.length === 0) return;
-        // last_read_at 컬럼이 없을 수 있으므로 단순히 최근 메시지 유무만 체크
-        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(); // 최근 7일
-        const roomIds = memberships.map(m => m.room_id);
-        const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true })
-            .in('room_id', roomIds).neq('user_id', userId).gt('created_at', since);
-        const unread = count || 0;
+        // 1. 내가 속한 방 + 마지막 읽은 시각
+        const { data: memberships } = await supabase
+            .from('room_members').select('room_id, last_read_at').eq('user_id', userId);
+        if (!memberships || memberships.length === 0) { badge.style.display = 'none'; return; }
+
+        // 2. 내가 볼 권한이 막힌 channel_rooms id 목록
+        const { data: blockedPerms } = await supabase
+            .from('channel_permissions').select('channel_id')
+            .eq('user_id', userId).eq('can_view', false);
+        const blockedIds = new Set((blockedPerms || []).map(p => p.channel_id));
+
+        // 3. 각 방별로 last_read_at 이후 볼 수 있는 방의 미읽음 메시지 카운트
+        let unread = 0;
+        for (const m of memberships) {
+            const since = m.last_read_at || '1970-01-01T00:00:00Z';
+
+            // 이 room에 속한 channel_rooms 중 볼 수 있는 것만
+            const { data: channels } = await supabase
+                .from('message_channels').select('id').eq('room_id', m.room_id);
+            const channelIds = (channels || []).map(c => c.id);
+            if (channelIds.length === 0) continue;
+
+            const { data: chatRooms } = await supabase
+                .from('channel_rooms').select('id').in('channel_id', channelIds);
+            const visibleIds = (chatRooms || []).map(cr => cr.id).filter(id => !blockedIds.has(id));
+            if (visibleIds.length === 0) continue;
+
+            const { count } = await supabase.from('messages')
+                .select('*', { count: 'exact', head: true })
+                .in('channel_id', visibleIds)
+                .neq('user_id', userId)
+                .gt('created_at', since);
+            unread += count || 0;
+        }
+
         badge.textContent = unread > 9 ? '9+' : unread;
         badge.style.display = unread > 0 ? 'flex' : 'none';
     } catch(e) {
