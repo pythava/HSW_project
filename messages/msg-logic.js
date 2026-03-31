@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadDmList();
 
     subscribeToMyInvites();
+    subscribeToPermissions();
     checkNotiBadge(user.id);
     checkMsgBadge(user.id);
     bindEvents();
@@ -289,22 +290,24 @@ async function loadChatRoomList(channelId, isOwner) {
     (myPerms || []).forEach(p => { permMap[p.channel_id] = p; });
 
     chatRooms.forEach(cr => {
-        // 권한 체크: channel_permissions에 내 레코드가 있으면 can_view 확인, 없으면 전체공개
+        // 권한 체크: 레코드 없으면 전체 허용, 있으면 해당 값 따름
         const perm = permMap[cr.id];
         const canView = isOwner || !perm || perm.can_view;
-        if (!canView) return; // 볼 수 없는 방은 표시 안 함
-
         const canChat = isOwner || !perm || perm.can_chat;
+
         const isMuted = _mutedRooms.has(cr.id);
         const li = document.createElement('li');
         li.className = 'chat-room-item channel-item-hover';
         li.dataset.chatRoomId = cr.id;
         li.dataset.canChat = canChat ? 'true' : 'false';
+        li.dataset.canView = canView ? 'true' : 'false';
+
+        // 아이콘: 볼 수도 없으면 lock, 볼 수만 있으면 visibility, 다 되면 chat
+        const icon = (!canView || !canChat) ? 'lock' : 'chat';
         li.innerHTML = `
-            <span class="material-symbols-rounded cr-icon">${canChat ? 'chat' : 'lock'}</span>
+            <span class="material-symbols-rounded cr-icon">${icon}</span>
             <span class="cr-name">${escapeHtml(cr.name)}</span>
             ${isMuted ? '<span class="material-symbols-rounded ch-muted-icon" title="알림 해제됨">notifications_off</span>' : ''}
-            ${!canChat && !isOwner ? '<span class="material-symbols-rounded" style="font-size:14px;color:var(--text-3);margin-left:auto;" title="읽기 전용">visibility</span>' : ''}
             <button class="cr-more-btn" title="방 설정">
                 <span class="material-symbols-rounded">more_horiz</span>
             </button>`;
@@ -344,28 +347,50 @@ async function openChatRoom(chatRoom, channelId) {
 
     // 채팅 권한 체크 (channel_permissions 테이블)
     const isOwner = _currentServer?.created_by === _me.id;
+    let canView = true;
     let canChat = true;
     if (!isOwner) {
         try {
             const { data: perm } = await supabase.from('channel_permissions')
-                .select('can_chat').eq('channel_id', chatRoom.id).eq('user_id', _me.id).maybeSingle();
-            if (perm !== null && perm !== undefined) canChat = perm.can_chat;
+                .select('can_view, can_chat').eq('channel_id', chatRoom.id).eq('user_id', _me.id).maybeSingle();
+            if (perm !== null && perm !== undefined) {
+                canView = perm.can_view;
+                canChat = perm.can_chat;
+            }
         } catch(e) { /* channel_permissions 테이블 없으면 기본 허용 */ }
     }
+    _currentChatRoom._canView = canView;
     _currentChatRoom._canChat = canChat;
 
     const msgInput = document.getElementById('msg-input');
     const sendBtn = document.getElementById('send-btn');
+    const attachBtn = document.querySelector('.attach-btn');
+    const chatMessages = document.getElementById('chat-messages');
+
     if (canChat) {
         msgInput.disabled = false;
         msgInput.placeholder = `#${chatRoom.name}에 메시지 보내기`;
         msgInput.style.opacity = '1';
         if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+        if (attachBtn) { attachBtn.disabled = false; attachBtn.style.opacity = '1'; attachBtn.style.pointerEvents = ''; }
     } else {
         msgInput.disabled = true;
-        msgInput.placeholder = '이 방에서는 채팅을 보낼 수 없어요.';
+        msgInput.placeholder = canView ? '이 방에서는 채팅을 보낼 수 없어요.' : '이 방에 접근 권한이 없어요.';
         msgInput.style.opacity = '0.5';
         if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.5'; }
+        if (attachBtn) { attachBtn.disabled = true; attachBtn.style.opacity = '0.5'; attachBtn.style.pointerEvents = 'none'; }
+    }
+
+    // 볼 권한 없으면 메시지 영역 잠금 표시
+    if (!canView) {
+        chatMessages.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text-3);">
+                <span class="material-symbols-rounded" style="font-size:48px;">lock</span>
+                <p style="font-size:0.9rem;">이 방의 메시지를 볼 권한이 없어요.</p>
+            </div>`;
+        subscribeToChatRoom(chatRoom.id);
+        loadRoomMembers(_currentServer.id);
+        return;
     }
 
     await loadMessages(chatRoom.id);
@@ -932,6 +957,31 @@ function subscribeToMyInvites() {
         }).subscribe();
 }
 
+// 권한 변경 실시간 감지 — channel_permissions INSERT/UPDATE/DELETE 시 즉시 반영
+function subscribeToPermissions() {
+    supabase.channel(`perms-${_me.id}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'channel_permissions',
+            filter: `user_id=eq.${_me.id}`
+        }, async (payload) => {
+            // 현재 열려있는 방의 권한이 바뀐 경우 즉시 재적용
+            if (_currentChatRoom && payload.new?.channel_id === _currentChatRoom.id) {
+                await openChatRoom(_currentChatRoom, _currentChannel?.id);
+            }
+            // 사이드바 방 목록도 갱신
+            if (_currentServer) {
+                const isOwner = _currentServer.created_by === _me.id;
+                const { data: channels } = await supabase
+                    .from('message_channels').select('id').eq('room_id', _currentServer.id);
+                for (const ch of (channels || [])) {
+                    await loadChatRoomList(ch.id, isOwner);
+                }
+            }
+        }).subscribe();
+}
+
 function appendNewMessage(msg) {
     const container = document.getElementById('chat-messages');
     const profile = msg.profiles;
@@ -1227,6 +1277,7 @@ async function checkMsgBadge(userId) {
 ───────────────────────────────────────── */
 async function uploadChatImage(file) {
     if (!_me || !_currentChatRoom) return;
+    if (_currentChatRoom._canChat === false) { showToast('이 방에서는 파일을 보낼 수 없어요.'); return; }
     if (file.size > 10 * 1024 * 1024) { alert('10MB 이하 이미지만 가능합니다.'); return; }
     const ext = file.name.split('.').pop();
     const fileName = `chat/${_me.id}/${Date.now()}.${ext}`;
