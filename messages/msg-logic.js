@@ -279,15 +279,32 @@ async function loadChatRoomList(channelId, isOwner) {
         return;
     }
 
+    // 내 권한 정보 일괄 조회
+    const roomIds = chatRooms.map(cr => cr.id);
+    const { data: myPerms } = await supabase.from('channel_permissions')
+        .select('channel_id, can_view, can_chat')
+        .in('channel_id', roomIds)
+        .eq('user_id', _me.id);
+    const permMap = {};
+    (myPerms || []).forEach(p => { permMap[p.channel_id] = p; });
+
     chatRooms.forEach(cr => {
+        // 권한 체크: channel_permissions에 내 레코드가 있으면 can_view 확인, 없으면 전체공개
+        const perm = permMap[cr.id];
+        const canView = isOwner || !perm || perm.can_view;
+        if (!canView) return; // 볼 수 없는 방은 표시 안 함
+
+        const canChat = isOwner || !perm || perm.can_chat;
         const isMuted = _mutedRooms.has(cr.id);
         const li = document.createElement('li');
         li.className = 'chat-room-item channel-item-hover';
         li.dataset.chatRoomId = cr.id;
+        li.dataset.canChat = canChat ? 'true' : 'false';
         li.innerHTML = `
-            <span class="material-symbols-rounded cr-icon">chat</span>
+            <span class="material-symbols-rounded cr-icon">${canChat ? 'chat' : 'lock'}</span>
             <span class="cr-name">${escapeHtml(cr.name)}</span>
             ${isMuted ? '<span class="material-symbols-rounded ch-muted-icon" title="알림 해제됨">notifications_off</span>' : ''}
+            ${!canChat && !isOwner ? '<span class="material-symbols-rounded" style="font-size:14px;color:var(--text-3);margin-left:auto;" title="읽기 전용">visibility</span>' : ''}
             <button class="cr-more-btn" title="방 설정">
                 <span class="material-symbols-rounded">more_horiz</span>
             </button>`;
@@ -322,17 +339,44 @@ async function openChatRoom(chatRoom, channelId) {
     document.getElementById('chat-room-avatar').style.display = 'none';
     document.getElementById('chat-channel-hash').style.display = 'inline';
     document.getElementById('chat-room-name').textContent = chatRoom.name;
-    document.getElementById('chat-room-sub').textContent = `${_currentServer?.name || ''} › ${ch?.name || ''}`;
-    document.getElementById('msg-input').placeholder = `#${chatRoom.name}에 메시지 보내기`;
+    document.getElementById('chat-room-sub').textContent = `${_currentServer?.name || ''} > ${ch?.name || ''}`;
     document.getElementById('members-panel').style.display = 'none';
+
+    // 채팅 권한 체크 (channel_permissions 테이블)
+    const isOwner = _currentServer?.created_by === _me.id;
+    let canChat = true;
+    if (!isOwner) {
+        try {
+            const { data: perm } = await supabase.from('channel_permissions')
+                .select('can_chat').eq('channel_id', chatRoom.id).eq('user_id', _me.id).maybeSingle();
+            if (perm !== null && perm !== undefined) canChat = perm.can_chat;
+        } catch(e) { /* channel_permissions 테이블 없으면 기본 허용 */ }
+    }
+    _currentChatRoom._canChat = canChat;
+
+    const msgInput = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+    if (canChat) {
+        msgInput.disabled = false;
+        msgInput.placeholder = `#${chatRoom.name}에 메시지 보내기`;
+        msgInput.style.opacity = '1';
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+    } else {
+        msgInput.disabled = true;
+        msgInput.placeholder = '이 방에서는 채팅을 보낼 수 없어요.';
+        msgInput.style.opacity = '0.5';
+        if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.5'; }
+    }
 
     await loadMessages(chatRoom.id);
     subscribeToChatRoom(chatRoom.id);
     loadRoomMembers(_currentServer.id);
 
-    // 읽음 처리
-    await supabase.from('room_members').update({ last_read_at: new Date().toISOString() })
-        .eq('room_id', _currentServer.id).eq('user_id', _me.id);
+    // 읽음 처리 (last_read_at 컬럼이 있을 때만 시도)
+    try {
+        await supabase.from('room_members').update({ last_read_at: new Date().toISOString() })
+            .eq('room_id', _currentServer.id).eq('user_id', _me.id);
+    } catch(e) { /* last_read_at 컬럼 없으면 무시 */ }
 }
 
 /* ─────────────────────────────────────────
@@ -527,15 +571,35 @@ async function saveChatRoomSettings(channelId) {
     await supabase.from('channel_rooms').update({ name, image_url: imageUrl }).eq('id', cr.id);
 
     // 권한 저장
-    await supabase.from('channel_permissions').delete().eq('channel_id', cr.id);
-    const { data: members } = await supabase.from('room_members').select('user_id').eq('room_id', _currentServer.id);
-    const permInserts = (members || []).map(m => ({
-        channel_id: cr.id,
-        user_id: m.user_id,
-        can_view: modal._viewSet.size === 0 ? true : modal._viewSet.has(m.user_id),
-        can_chat: modal._chatSet.size === 0 ? true : modal._chatSet.has(m.user_id)
-    }));
-    if (permInserts.length > 0) await supabase.from('channel_permissions').insert(permInserts);
+    // viewSet/chatSet이 비어있으면 전체공개 (레코드 삭제 = 전체허용)
+    // 비어있지 않으면 선택된 멤버만 저장
+    try {
+        await supabase.from('channel_permissions').delete().eq('channel_id', cr.id);
+        const { data: members } = await supabase.from('room_members').select('user_id').eq('room_id', _currentServer.id);
+        
+        // viewSet, chatSet이 둘 다 비어있으면 권한 레코드 저장 안 해도 됨 (전체공개 기본값)
+        const hasViewRestriction = modal._viewSet.size > 0;
+        const hasChatRestriction = modal._chatSet.size > 0;
+        
+        if (hasViewRestriction || hasChatRestriction) {
+            const permInserts = (members || []).map(m => ({
+                channel_id: cr.id,
+                user_id: m.user_id,
+                can_view: hasViewRestriction ? modal._viewSet.has(m.user_id) : true,
+                can_chat: hasChatRestriction ? modal._chatSet.has(m.user_id) : true
+            }));
+            if (permInserts.length > 0) {
+                const { error: permErr } = await supabase.from('channel_permissions').insert(permInserts);
+                if (permErr) {
+                    console.error('권한 저장 실패:', permErr);
+                    showToast('권한 저장에 실패했어요. channel_permissions 테이블을 확인해주세요.');
+                }
+            }
+        }
+    } catch(e) {
+        console.error('권한 처리 오류:', e);
+        showToast('권한 처리 중 오류가 발생했어요.');
+    }
 
     modal.style.display = 'none';
     showToast(`#${name} 방 설정이 저장됐어요.`);
@@ -908,6 +972,12 @@ async function sendMessage() {
 
     if (!_currentChatRoom && !_currentServer) return;
 
+    // 채팅 권한 체크
+    if (_currentChatRoom && _currentChatRoom._canChat === false) {
+        showToast('이 방에서는 채팅을 보낼 수 없어요.');
+        return;
+    }
+
     input.value = '';
     input.style.height = 'auto';
 
@@ -1126,17 +1196,20 @@ async function checkNotiBadge(userId) {
 async function checkMsgBadge(userId) {
     const badge = document.getElementById('nav-msg-badge');
     if (!badge) return;
-    const { data: memberships } = await supabase.from('room_members').select('room_id, last_read_at').eq('user_id', userId);
-    if (!memberships || memberships.length === 0) return;
-    let unread = 0;
-    for (const m of memberships) {
-        const since = m.last_read_at || '1970-01-01';
+    try {
+        const { data: memberships, error: mErr } = await supabase.from('room_members').select('room_id').eq('user_id', userId);
+        if (mErr || !memberships || memberships.length === 0) return;
+        // last_read_at 컬럼이 없을 수 있으므로 단순히 최근 메시지 유무만 체크
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(); // 최근 7일
+        const roomIds = memberships.map(m => m.room_id);
         const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true })
-            .eq('room_id', m.room_id).neq('user_id', userId).gt('created_at', since);
-        unread += count || 0;
+            .in('room_id', roomIds).neq('user_id', userId).gt('created_at', since);
+        const unread = count || 0;
+        badge.textContent = unread > 9 ? '9+' : unread;
+        badge.style.display = unread > 0 ? 'flex' : 'none';
+    } catch(e) {
+        console.warn('checkMsgBadge 오류:', e);
     }
-    badge.textContent = unread > 9 ? '9+' : unread;
-    badge.style.display = unread > 0 ? 'flex' : 'none';
 }
 
 /* ─────────────────────────────────────────
