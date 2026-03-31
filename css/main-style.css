@@ -712,6 +712,7 @@
    알림 뱃지
 ───────────────────────────────────────── */
 .noti-link { position: relative; }
+.msg-nav-link { position: relative; }
 .badge {
     position: absolute;
     top: 6px; left: 28px;
