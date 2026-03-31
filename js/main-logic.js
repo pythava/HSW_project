@@ -628,12 +628,12 @@ async function submitComment(postId, inputEl, currentUser) {
                 <span class="comment-time">방금 전</span>
             </div>`;
 
-        // prepend 대신 append — 스크롤이 아래로 자연스럽게 이어짐
-        listEl.appendChild(tempEl);
+        // DB 정렬(최신순 위)과 동일하게 prepend
+        listEl.prepend(tempEl);
 
-        // 댓글 리스트 스크롤을 새 댓글 위치로 부드럽게 이동
+        // 댓글 리스트 스크롤을 맨 위로 부드럽게 이동
         requestAnimationFrame(() => {
-            listEl.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' });
+            listEl.scrollTo({ top: 0, behavior: 'smooth' });
         });
     }
 
