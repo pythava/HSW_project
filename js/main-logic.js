@@ -334,7 +334,7 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
     });
     article.querySelector('.delete-post-btn')?.addEventListener('click', async () => {
         moreMenu.style.display = 'none';
-        if (!confirm('정말 삭제할까요?')) return;
+        if (!await ugConfirm('이 게시물을 삭제할까요?', { title: '게시물 삭제', icon: 'delete', confirmText: '삭제', danger: true })) return;
         const { error } = await supabase.from('posts').delete().eq('id', post.id);
         if (error) { showToast('삭제 실패: ' + error.message); return; }
         article.style.animation = 'fadeOut 0.3s ease forwards';
@@ -438,7 +438,14 @@ async function openMiniProfile(userId) {
     panel.querySelector('.mini-close-btn').addEventListener('click', closeMiniProfile);
     panel.querySelector('.mini-follow-btn')?.addEventListener('click', async (e) => {
         if (!currentUser) { showToast('로그인이 필요합니다.'); return; }
-        await toggleFollow(userId, e.currentTarget);
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        await toggleFollow(userId, btn);
+        btn.disabled = false;
+        // 팔로워 수 즉시 반영
+        const { data: updatedProfile } = await supabase.from('profiles').select('follower_count, following_count').eq('id', userId).single();
+        const statsEls = panel.querySelectorAll('.mini-stats div strong');
+        if (statsEls[1] && updatedProfile) statsEls[1].textContent = updatedProfile.follower_count || 0;
     });
 }
 
