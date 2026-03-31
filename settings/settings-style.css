@@ -1,11 +1,19 @@
 /* settings/settings-style.css */
 
+/* ─────────────────────────────────────────
+   핵심 수정:
+   ug-main-feed(flex column, height:100%)에서
+   header는 shrink:0 고정, body는 flex:1 + min-height:0 + overflow-y:auto
+   → body 영역만 스크롤되어 모든 섹션이 보임
+───────────────────────────────────────── */
+
 .settings-header {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 24px 28px 20px;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 .settings-header .material-symbols-rounded { font-size: 26px; color: var(--primary); }
 .settings-header h1 { font-size: 1.25rem; font-weight: 800; color: var(--text-0); }
@@ -17,8 +25,11 @@
     gap: 20px;
     overflow-y: auto;
     flex: 1;
-    min-height: 0;
+    min-height: 0; /* flex 자식에서 overflow-y scroll 동작하려면 반드시 필요 */
 }
+.settings-body::-webkit-scrollbar { width: 5px; }
+.settings-body::-webkit-scrollbar-track { background: transparent; }
+.settings-body::-webkit-scrollbar-thumb { background-color: var(--border); border-radius: 4px; }
 
 /* 섹션 */
 .settings-section {
@@ -26,6 +37,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     overflow: hidden;
+    flex-shrink: 0;
 }
 .settings-section-danger { border-color: rgba(255,68,68,0.2); }
 
@@ -51,41 +63,31 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 20px 20px;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border);
     transition: background 0.15s;
-    flex-wrap: nowrap;
-    min-height: 72px;
+    min-height: 64px;
 }
 .settings-row:last-child { border-bottom: none; }
 .settings-row:hover { background: rgba(255,255,255,0.02); }
 
-.settings-row-info {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-}
+.settings-row-info { flex: 1; min-width: 0; }
 .settings-row-label {
     display: block;
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--text-0);
     margin-bottom: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 .danger-text { color: var(--error); }
 .settings-row-sub {
     display: block;
     font-size: 0.78rem;
     color: var(--text-3);
-    white-space: normal;        /* 줄바꿈 허용 */
-    word-break: break-word;
-    overflow: visible;
-    text-overflow: unset;
-    max-width: 100%;            /* 고정 px 제거 */
-    line-height: 1.45;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
 }
 
 /* 버튼들 */
@@ -242,36 +244,74 @@
 .settings-textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
 .settings-input-hint { font-size: 0.75rem; color: var(--text-3); }
 
-/* 우측 프로필 카드 */
-.settings-profile-card { padding: 20px; }
+/* ─────────────────────────────────────────
+   우측 프로필 카드 — main-style.css auth-status-card + user-profile-card 와 동일
+───────────────────────────────────────── */
+.settings-profile-card {
+    background-color: var(--bg-2);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    text-align: left;
+}
+
 .spc-inner {
     display: flex;
     flex-direction: column;
+    gap: 0;
+    align-items: stretch;
+}
+
+/* 아바타 + 이름/이메일 가로 배치 */
+.spc-row {
+    display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 24px 20px;
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    text-align: center;
+    gap: 12px;
+    margin-bottom: 14px;
 }
 .spc-avatar {
-    width: 72px; height: 72px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     object-fit: cover;
-    border: 3px solid var(--primary);
+    border: 2px solid var(--primary);
+    flex-shrink: 0;
 }
-.spc-name { font-weight: 800; font-size: 0.95rem; color: var(--text-0); }
-.spc-email { font-size: 0.78rem; color: var(--text-3); }
+.spc-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.spc-name {
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--text-0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.spc-email {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 프로필 보기 버튼 — btn-my-profile 스타일과 동일 */
 .spc-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.82rem;
-    color: var(--primary);
-    font-weight: 600;
-    margin-top: 4px;
-    transition: opacity 0.15s;
+    display: block;
+    width: 100%;
+    padding: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 8px;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-1);
+    transition: border-color 0.2s, color 0.2s;
 }
-.spc-link:hover { opacity: 0.75; }
-.spc-link .material-symbols-rounded { font-size: 15px; }
+.spc-link:hover { border-color: var(--primary); color: var(--primary); }
+.spc-link .material-symbols-rounded { display: none; }
