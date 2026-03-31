@@ -22,8 +22,9 @@
                 <li><a href="../messages/index.html"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
                 <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
                 <li><a href="../notifications.html"><span class="material-symbols-rounded">notifications</span>알림</a></li>
-                <li><a href="../pam.html"><span class="material-symbols-rounded">search</span>팸</a></li>
+                <li><a href="../pam.html"><span class="material-symbols-rounded">groups</span>팸</a></li>
                 <li><a href="../write/index.html" class="write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
+                <li><a href="../settings/index.html"><span class="material-symbols-rounded">settings</span>설정</a></li>
             </ul>
             <div class="nav-footer">
                 <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
@@ -62,11 +63,11 @@
                                 <span id="stat-posts" class="stat-num">0</span>
                                 <span class="stat-label">게시물</span>
                             </div>
-                            <div class="stat-item">
+                            <div class="stat-item stat-clickable" id="stat-followers-wrap" title="팔로워 목록">
                                 <span id="stat-followers" class="stat-num">0</span>
                                 <span class="stat-label">팔로워</span>
                             </div>
-                            <div class="stat-item">
+                            <div class="stat-item stat-clickable" id="stat-following-wrap" title="팔로잉 목록">
                                 <span id="stat-following" class="stat-num">0</span>
                                 <span class="stat-label">팔로잉</span>
                             </div>
@@ -104,14 +105,14 @@
                     <div class="profile-posts-header">
                         <span class="material-symbols-rounded">groups</span> 참여 중인 팸
                     </div>
-                    <div id="profile-pams-list" class="profile-pams-list"></div>
+                    <div id="profile-pams-list" class="profile-pams-list" style="padding: 0 28px 10px;"></div>
                 </div>
 
                 <!-- 게시물 목록 -->
                 <div class="profile-posts-header">
                     <span class="material-symbols-rounded">grid_on</span> 게시물
                 </div>
-                <div id="profile-posts" class="profile-posts-grid-v2">
+                <div id="profile-posts" class="profile-posts-grid-v2" style="padding: 0 28px 32px;">
                     <div class="feed-loader">
                         <span class="material-symbols-rounded animation-spin">sync</span>
                     </div>
@@ -128,6 +129,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="../js/supabase-config.js"></script>
+    <script src="../js/common-ui.js"></script>
     <script src="../js/auth-handler.js"></script>
     <script src="./profile-logic.js"></script>
 </body>
