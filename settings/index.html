@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnderGarden | 설정</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/main-style.css">
+    <link rel="stylesheet" href="./settings-style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="ug-layout">
+    <nav class="ug-side-nav">
+        <div class="nav-header"><a href="../index.html" class="logo">UnderGarden</a></div>
+        <ul class="nav-links">
+            <li><a href="../index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
+            <li><a href="../messages/index.html"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
+            <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
+            <li><a href="../notifications.html"><span class="material-symbols-rounded">notifications</span>알림</a></li>
+            <li><a href="../pam.html"><span class="material-symbols-rounded">groups</span>팸</a></li>
+            <li><a href="../write/index.html" class="write-link"><span class="material-symbols-rounded">add_circle</span>게시하기</a></li>
+            <li><a href="./index.html" class="active"><span class="material-symbols-rounded">settings</span>설정</a></li>
+        </ul>
+        <div class="nav-footer">
+            <button id="logout-btn"><span class="material-symbols-rounded">logout</span>로그아웃</button>
+        </div>
+    </nav>
+
+    <main class="ug-main-feed">
+        <header class="settings-header">
+            <span class="material-symbols-rounded">settings</span>
+            <h1>설정</h1>
+        </header>
+        <div class="settings-body">
+
+            <!-- 프로필 -->
+            <section class="settings-section">
+                <div class="settings-section-title"><span class="material-symbols-rounded">person</span>프로필</div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">닉네임</span>
+                        <span class="settings-row-sub" id="current-username">로딩 중...</span>
+                    </div>
+                    <button class="settings-btn-outline" id="open-username-modal">변경</button>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">소개글</span>
+                        <span class="settings-row-sub ellipsis" id="current-description">없음</span>
+                    </div>
+                    <button class="settings-btn-outline" id="open-desc-modal">변경</button>
+                </div>
+            </section>
+
+            <!-- 계정 -->
+            <section class="settings-section">
+                <div class="settings-section-title"><span class="material-symbols-rounded">lock</span>계정</div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">계정 공개 여부</span>
+                        <span class="settings-row-sub" id="privacy-sub">공개 계정</span>
+                    </div>
+                    <label class="ug-toggle">
+                        <input type="checkbox" id="privacy-toggle">
+                        <span class="ug-toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">이메일</span>
+                        <span class="settings-row-sub" id="current-email">로딩 중...</span>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">비밀번호 변경</span>
+                        <span class="settings-row-sub">이메일로 재설정 링크 발송</span>
+                    </div>
+                    <button class="settings-btn-outline" id="reset-password-btn">발송</button>
+                </div>
+            </section>
+
+            <!-- 알림 -->
+            <section class="settings-section">
+                <div class="settings-section-title"><span class="material-symbols-rounded">notifications</span>알림</div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">팔로우 알림</span>
+                        <span class="settings-row-sub">누군가 나를 팔로우할 때</span>
+                    </div>
+                    <label class="ug-toggle"><input type="checkbox" id="noti-follow" checked><span class="ug-toggle-slider"></span></label>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">좋아요 알림</span>
+                        <span class="settings-row-sub">내 게시물에 좋아요가 달릴 때</span>
+                    </div>
+                    <label class="ug-toggle"><input type="checkbox" id="noti-like" checked><span class="ug-toggle-slider"></span></label>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">댓글 알림</span>
+                        <span class="settings-row-sub">내 게시물에 댓글이 달릴 때</span>
+                    </div>
+                    <label class="ug-toggle"><input type="checkbox" id="noti-comment" checked><span class="ug-toggle-slider"></span></label>
+                </div>
+            </section>
+
+            <!-- 위험 구역 -->
+            <section class="settings-section settings-section-danger">
+                <div class="settings-section-title danger"><span class="material-symbols-rounded">warning</span>위험 구역</div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label">로그아웃</span>
+                        <span class="settings-row-sub">현재 기기에서 로그아웃</span>
+                    </div>
+                    <button class="settings-btn-outline" id="settings-logout-btn">로그아웃</button>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <span class="settings-row-label danger-text">계정 삭제</span>
+                        <span class="settings-row-sub">모든 데이터가 영구 삭제됩니다</span>
+                    </div>
+                    <button class="settings-btn-danger" id="delete-account-btn">탈퇴하기</button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <aside class="ug-right-panel">
+        <div class="settings-profile-card" id="settings-profile-card">
+            <div class="loader-small">연결 중...</div>
+        </div>
+    </aside>
+</div>
+
+<!-- 닉네임 변경 모달 -->
+<div class="ug-settings-modal-overlay" id="username-modal" style="display:none;">
+    <div class="ug-settings-modal">
+        <div class="ug-settings-modal-header">
+            <span>닉네임 변경</span>
+            <button class="ug-settings-modal-close" data-close="username-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="ug-settings-modal-body">
+            <label class="settings-input-label">새 닉네임</label>
+            <input type="text" id="new-username-input" class="settings-input" maxlength="20" placeholder="최대 20자">
+        </div>
+        <div class="ug-settings-modal-footer">
+            <button class="settings-btn-outline" data-close="username-modal">취소</button>
+            <button class="settings-btn-primary" id="save-username-btn">저장</button>
+        </div>
+    </div>
+</div>
+
+<!-- 소개글 변경 모달 -->
+<div class="ug-settings-modal-overlay" id="desc-modal" style="display:none;">
+    <div class="ug-settings-modal">
+        <div class="ug-settings-modal-header">
+            <span>소개글 변경</span>
+            <button class="ug-settings-modal-close" data-close="desc-modal"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="ug-settings-modal-body">
+            <label class="settings-input-label">소개글</label>
+            <textarea id="new-desc-input" class="settings-input settings-textarea" maxlength="150" placeholder="자신을 소개해보세요... (최대 150자)"></textarea>
+            <p class="settings-input-hint"><span id="desc-char-count">0</span> / 150</p>
+        </div>
+        <div class="ug-settings-modal-footer">
+            <button class="settings-btn-outline" data-close="desc-modal">취소</button>
+            <button class="settings-btn-primary" id="save-desc-btn">저장</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/supabase-config.js"></script>
+<script src="../js/common-ui.js"></script>
+<script src="./settings-logic.js"></script>
+</body>
+</html>
