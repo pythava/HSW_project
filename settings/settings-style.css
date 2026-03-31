@@ -17,6 +17,7 @@
     gap: 20px;
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
 }
 
 /* 섹션 */
@@ -50,11 +51,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 16px 20px;
+    padding: 20px 20px;
     border-bottom: 1px solid var(--border);
     transition: background 0.15s;
     flex-wrap: nowrap;
-    min-height: 64px;
+    min-height: 72px;
 }
 .settings-row:last-child { border-bottom: none; }
 .settings-row:hover { background: rgba(255,255,255,0.02); }
