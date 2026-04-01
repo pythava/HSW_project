@@ -11,8 +11,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!user) { location.href = './login.html'; return; }
     _me = user;
 
-    checkNotiBadge && checkNotiBadge(user.id);
-    checkMsgBadge && checkMsgBadge(user.id);
+    if (typeof checkNotiBadge === 'function') checkNotiBadge(user.id);
+    if (typeof checkMsgBadge  === 'function') checkMsgBadge(user.id);
 
     // 기본 화면 데이터 로드
     await loadTrendingPams();
