@@ -103,7 +103,7 @@ async function doSearch(q) {
     // 게시물 검색
     const { data: posts } = await supabase
         .from('posts')
-        .select('id, content, image_url, like_count, comment_count')
+        .select('id, content, image_url, likes(count), comments(count)')
         .ilike('content', `%${q}%`)
         .limit(30);
 
@@ -164,8 +164,8 @@ function renderPamResults(pams) {
 }
 
 function buildPamCard(p) {
-    const imgHtml = p.cover_url
-        ? `<img src="${p.cover_url}" alt="${escHtml(p.name)}" onerror="this.parentElement.innerHTML='<div class=pam-card-img-placeholder>🌿</div>'">`
+    const imgHtml = p.image_url
+        ? `<img src="${p.image_url}" alt="${escHtml(p.name)}" onerror="this.parentElement.innerHTML='<div class=pam-card-img-placeholder>🌿</div>'">`
         : `<div class="pam-card-img-placeholder">🌿</div>`;
     return `
         <a href="./pam.html?id=${p.id}" class="pam-card">
@@ -194,8 +194,8 @@ function renderPostResults(posts) {
 }
 
 function buildPostGridItem(p) {
-    const likes = p.like_count || 0;
-    const comments = p.comment_count || 0;
+    const likes = p.likes?.[0]?.count ?? 0;
+    const comments = p.comments?.[0]?.count ?? 0;
     if (p.image_url) {
         return `
             <div class="post-grid-item" onclick="location.href='./post.html?id=${p.id}'">
@@ -259,8 +259,8 @@ async function loadTrendingPosts() {
     const container = document.getElementById('trending-posts');
     const { data: posts } = await supabase
         .from('posts')
-        .select('id, content, image_url, like_count, comment_count')
-        .order('like_count', { ascending: false })
+        .select('id, content, image_url, likes(count), comments(count)')
+        .order('created_at', { ascending: false })
         .limit(12);
 
     if (!posts || !posts.length) {
