@@ -276,44 +276,132 @@ function createProfilePostCard(post) {
     return card;
 }
 
-function openPostModal(post) {
+async function openPostModal(post) {
+    // 상세 데이터 fetch
+    const { data: full } = await supabase
+        .from('posts')
+        .select('*, profiles(id, username, avatar_url), likes(count), comments(count)')
+        .eq('id', post.id).single();
+    const p = full || post;
+
+    const imgs         = (p.image_urls && p.image_urls.length > 0) ? p.image_urls : (p.image_url ? [p.image_url] : []);
+    const likeCount    = p.likes?.[0]?.count ?? 0;
+    const commentCount = p.comments?.[0]?.count ?? 0;
+    const author       = p.profiles;
+    const avatar       = author?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${p.user_id}`;
+    const username     = author?.username || '익명';
+    const plainContent = (p.content || '').replace(/[#*`>~_\[\]]/g, '').trim();
+    const tagsHtml     = (p.tags || []).map(t => `<span style="display:inline-block;padding:2px 10px;background:var(--bg-2);border-radius:20px;font-size:0.78rem;color:var(--primary);font-weight:600;">#${escapeHtml(t)}</span>`).join('');
+    const timeStr      = formatTime(new Date(p.created_at));
+    const hasImg       = imgs.length > 0;
+
+    let mediaHtml = '';
+    if (imgs.length > 1) {
+        mediaHtml = `<div style="position:relative;background:#000;flex:1;display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden;">
+            <div id="prof-modal-slides" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                ${imgs.map((u,i) => `<img src="${u}" style="max-width:100%;max-height:100%;object-fit:contain;display:${i===0?'block':'none'};">`).join('')}
+            </div>
+            <button onclick="profModalCarousel(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2;">&#8249;</button>
+            <button onclick="profModalCarousel(1)"  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2;">&#8250;</button>
+            <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px;" id="prof-modal-dots">
+                ${imgs.map((_,i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};transition:background 0.2s;"></div>`).join('')}
+            </div></div>`;
+    } else if (imgs.length === 1) {
+        mediaHtml = `<div style="background:#000;flex:1;display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden;">
+            <img src="${imgs[0]}" style="max-width:100%;max-height:100%;object-fit:contain;"></div>`;
+    }
+
     let overlay = document.getElementById('post-modal-overlay');
     if (overlay) overlay.remove();
     overlay = document.createElement('div');
     overlay.id = 'post-modal-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 20px;backdrop-filter:blur(6px);';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);';
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
-    const imgs = post.image_urls && post.image_urls.length > 0 ? post.image_urls : (post.image_url ? [post.image_url] : []);
-    const img  = imgs[0];
-    const carouselHtml = imgs.length > 1
-        ? `<div style="position:relative;background:#000;border-radius:12px;overflow:hidden;margin-bottom:16px;">
-            <div id="modal-carousel-slides">${imgs.map((u,i) => `<img src="${u}" style="width:100%;max-height:400px;object-fit:contain;display:${i===0?'block':'none'}">`).join('')}</div>
-            <button onclick="modalCarousel(-1)" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&#8249;</button>
-            <button onclick="modalCarousel(1)"  style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);color:white;border:none;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&#8250;</button>
-            <div style="position:absolute;bottom:8px;right:12px;background:rgba(0,0,0,0.6);color:white;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:20px;" id="modal-carousel-counter">1/${imgs.length}</div>
-           </div>`
-        : img ? `<img src="${img}" style="width:100%;max-height:400px;object-fit:contain;background:#000;border-radius:12px;margin-bottom:16px;">` : '';
-    const plainContent = (post.content || '').replace(/[#*`>~_\[\]]/g, '').trim();
-    const tagsHtml = (post.tags || []).map(t => `<span class="ppc-tag">#${t}</span>`).join('');
+
     overlay.innerHTML = `
-        <div style="background:var(--bg-1);border:1px solid var(--border);border-radius:20px;width:560px;max-width:94vw;padding:24px;animation:slideDown 0.25s cubic-bezier(0.34,1.56,0.64,1);position:relative;">
-            <button onclick="document.getElementById('post-modal-overlay').remove()" style="position:absolute;top:14px;right:14px;width:32px;height:32px;background:var(--bg-2);border:none;border-radius:50%;color:var(--text-2);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">✕</button>
-            ${carouselHtml}
-            ${post.title ? `<h2 style="font-size:1.2rem;font-weight:800;color:var(--text-0);margin-bottom:10px;line-height:1.3;">${escapeHtml(post.title)}</h2>` : ''}
-            <p style="font-size:0.9rem;color:var(--text-1);line-height:1.7;white-space:pre-wrap;margin-bottom:14px;">${escapeHtml(plainContent)}</p>
-            ${tagsHtml ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">${tagsHtml}</div>` : ''}
-            <div style="font-size:0.75rem;color:var(--text-3);">${formatTime(new Date(post.created_at))}</div>
-        </div>`;
-    window._modalCarouselIdx = 0; window._modalCarouselImgs = imgs;
+    <style>@keyframes profModalIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}</style>
+    <div style="display:flex;flex-direction:${hasImg?'row':'column'};width:${hasImg?'min(900px,94vw)':'min(520px,94vw)'};max-height:90vh;background:var(--bg-1);border-radius:16px;overflow:hidden;border:1px solid var(--border);animation:profModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1);">
+        ${hasImg ? mediaHtml : ''}
+        <div style="width:${hasImg?'340px':'100%'};min-width:${hasImg?'280px':'unset'};flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-1);">
+            <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+                <img src="${avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${p.user_id}'">
+                <div>
+                    <div style="font-weight:700;font-size:0.88rem;color:var(--text-0);">@${escapeHtml(username)}</div>
+                    <div style="font-size:0.72rem;color:var(--text-3);">${timeStr}</div>
+                </div>
+                <button onclick="document.getElementById('post-modal-overlay').remove()" style="margin-left:auto;width:30px;height:30px;background:var(--bg-2);border:none;border-radius:50%;color:var(--text-2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0;">
+                ${p.title ? `<div style="font-size:1.05rem;font-weight:800;color:var(--text-0);line-height:1.3;">${escapeHtml(p.title)}</div>` : ''}
+                ${plainContent ? `<p style="font-size:0.88rem;color:var(--text-1);line-height:1.75;white-space:pre-wrap;margin:0;">${escapeHtml(plainContent)}</p>` : ''}
+                ${tagsHtml ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${tagsHtml}</div>` : ''}
+            </div>
+            <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:18px;flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:5px;color:var(--text-2);font-size:0.85rem;">
+                    <span class="material-symbols-rounded" style="font-size:18px;color:#f43f5e;">favorite</span>
+                    <span style="font-weight:600;">${likeCount}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;color:var(--text-2);font-size:0.85rem;">
+                    <span class="material-symbols-rounded" style="font-size:18px;">chat_bubble</span>
+                    <span style="font-weight:600;">${commentCount}</span>
+                </div>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.appendChild(overlay);
+    window._profCarouselIdx  = 0;
+    window._profCarouselImgs = imgs;
 }
 
-window.modalCarousel = function(dir) {
-    const imgs = window._modalCarouselImgs || []; if (imgs.length < 2) return;
-    window._modalCarouselIdx = (window._modalCarouselIdx + dir + imgs.length) % imgs.length;
-    document.querySelectorAll('#modal-carousel-slides img').forEach((s,i) => s.style.display = i === window._modalCarouselIdx ? 'block' : 'none');
-    const c = document.getElementById('modal-carousel-counter'); if (c) c.textContent = `${window._modalCarouselIdx+1}/${imgs.length}`;
+window.profModalCarousel = function(dir) {
+    const imgs = window._profCarouselImgs || [];
+    if (imgs.length < 2) return;
+    window._profCarouselIdx = (window._profCarouselIdx + dir + imgs.length) % imgs.length;
+    const idx = window._profCarouselIdx;
+    document.querySelectorAll('#prof-modal-slides img').forEach((s,i) => s.style.display = i===idx?'block':'none');
+    document.querySelectorAll('#prof-modal-dots div').forEach((d,i) => {
+        d.style.background = i===idx ? '#fff' : 'rgba(255,255,255,0.4)';
+    });
 };
+
+/* ─── 팸 모달 (프로필 페이지용) ─── */
+async function openProfilePamModal(pam) {
+    const { data: p } = await supabase.from('pams').select('*').eq('id', pam.id).single();
+    const data = p || pam;
+
+    let overlay = document.getElementById('prof-pam-modal-overlay');
+    if (overlay) overlay.remove();
+    overlay = document.createElement('div');
+    overlay.id = 'prof-pam-modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    overlay.innerHTML = `
+    <style>@keyframes profModalIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}</style>
+    <div style="width:min(460px,94vw);background:var(--bg-1);border-radius:20px;overflow:hidden;border:1px solid var(--border);animation:profModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1);">
+        <div style="width:100%;height:200px;background:var(--bg-2);position:relative;overflow:hidden;">
+            ${data.image_url ? `<img src="${data.image_url}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:64px;">🌿</div>`}
+            <button onclick="document.getElementById('prof-pam-modal-overlay').remove()" style="position:absolute;top:12px;right:12px;width:32px;height:32px;background:rgba(0,0,0,0.5);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
+        <div style="padding:20px 22px 24px;">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--text-0);margin-bottom:6px;">${escapeHtml(data.name||'')}</div>
+            ${data.description ? `<p style="font-size:0.88rem;color:var(--text-1);line-height:1.7;margin:0 0 14px;">${escapeHtml(data.description)}</p>` : ''}
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;">
+                <div style="display:flex;align-items:center;gap:5px;font-size:0.82rem;color:var(--text-2);">
+                    <span class="material-symbols-rounded" style="font-size:16px;">group</span>
+                    <b style="color:var(--text-0);">${data.member_count||0}</b>명
+                </div>
+                ${data.region ? `<div style="display:flex;align-items:center;gap:5px;font-size:0.82rem;color:var(--text-2);"><span class="material-symbols-rounded" style="font-size:16px;">location_on</span>${escapeHtml(data.region)}</div>` : ''}
+            </div>
+            <a href="/pam.html?id=${data.id}" style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;background:var(--primary);color:#fff;border-radius:12px;font-weight:700;font-size:0.9rem;text-decoration:none;">
+                <span class="material-symbols-rounded" style="font-size:18px;">groups</span>팸 페이지로 이동
+            </a>
+        </div>
+    </div>`;
+
+    document.body.appendChild(overlay);
+}
 
 /* ─── 유저 팸 ─── */
 async function loadUserPams(userId) {
@@ -330,10 +418,12 @@ async function loadUserPams(userId) {
     pams.forEach(pam => {
         const item = document.createElement('div');
         item.className = 'profile-pam-card';
+        item.style.cursor = 'pointer';
         item.innerHTML = `
             <div class="profile-pam-img">${pam.image_url ? `<img src="${pam.image_url}" alt="${escapeHtml(pam.name)}">` : '<span class="material-symbols-rounded" style="font-size:24px;color:var(--text-3)">groups</span>'}</div>
             <div class="profile-pam-name">${escapeHtml(pam.name)}</div>
             <div class="profile-pam-members">${pam.member_count || 1}명</div>`;
+        item.addEventListener('click', () => openProfilePamModal(pam));
         pamList.appendChild(item);
     });
 }
