@@ -131,6 +131,12 @@ async function fetchPosts(tab = '최신') {
 }
 
 function setupRealtime() {
+    // 기존 채널 정리 후 재등록 (새로고침 시 중복 방지)
+    ['realtime-posts', 'realtime-posts-delete', 'realtime-comments', 'realtime-likes'].forEach(name => {
+        const ch = supabase.getChannels().find(c => c.topic === `realtime:${name}` || c.subTopic === name);
+        if (ch) supabase.removeChannel(ch);
+    });
+
     supabase.channel('realtime-posts')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
             if (_currentTab !== '최신') return;
@@ -140,12 +146,15 @@ function setupRealtime() {
             newPost.likes_count = 0;
             const user = await getCurrentUser();
             const feedContainer = document.getElementById('main-feed');
+            if (!feedContainer) return;
             feedContainer.querySelector('.feed-empty')?.remove();
             const card = createPostCard(newPost, false, user, []);
             card.style.animation = 'slideInTop 0.4s ease';
             feedContainer.prepend(card);
         })
-        .subscribe();
+        .subscribe((status, err) => {
+            if (err) console.warn('realtime-posts 구독 오류:', err);
+        });
 
     supabase.channel('realtime-posts-delete')
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
@@ -154,7 +163,9 @@ function setupRealtime() {
             const card = document.querySelector(`.post-card[data-post-id="${deletedId}"]`);
             if (card) { card.style.animation = 'fadeOut 0.3s ease forwards'; setTimeout(() => card.remove(), 300); }
         })
-        .subscribe();
+        .subscribe((status, err) => {
+            if (err) console.warn('realtime-posts-delete 구독 오류:', err);
+        });
 
     supabase.channel('realtime-comments')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload) => {
@@ -169,7 +180,9 @@ function setupRealtime() {
             const countLabel = document.querySelector(`.comment-toggle-btn[data-post-id="${c.post_id}"] .comment-count-label`);
             if (countLabel) countLabel.textContent = (parseInt(countLabel.textContent) || 0) + 1;
         })
-        .subscribe();
+        .subscribe((status, err) => {
+            if (err) console.warn('realtime-comments 구독 오류:', err);
+        });
 
     supabase.channel('realtime-likes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, async (payload) => {
@@ -179,7 +192,9 @@ function setupRealtime() {
             const countEl = document.querySelector(`.like-btn[data-post-id="${postId}"] .like-count`);
             if (countEl && count !== null) countEl.textContent = count;
         })
-        .subscribe();
+        .subscribe((status, err) => {
+            if (err) console.warn('realtime-likes 구독 오류:', err);
+        });
 }
 
 async function checkNotiBadge(userId) {
