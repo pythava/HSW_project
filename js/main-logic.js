@@ -38,12 +38,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchPosts('최신');
     fetchTrendingQueries();
 
-    const tabs = document.querySelectorAll('.feed-tabs .pam-tab');
+    const tabs = document.querySelectorAll('.pam-tabs .pam-tab');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            _currentTab = tab.dataset.tab || tab.textContent.replace(/[✦👥]/g,'').trim();
+            _currentTab = tab.dataset.tab;
             document.getElementById('main-feed').innerHTML = `
                 <div class="feed-loader">
                     <span class="material-symbols-rounded animation-spin">sync</span>
@@ -347,21 +347,144 @@ function createPostCard(post, isLiked = false, currentUser = null, recentComment
         openMiniProfile(profileId);
     });
 
+    // 댓글 3점 메뉴 이벤트 위임 (buildCommentsHtml로 렌더된 정적 댓글용)
+    const commentList = article.querySelector(`#comment-list-${post.id}`);
+    commentList.addEventListener('click', async (e) => {
+        const moreBtn = e.target.closest('.comment-more-btn');
+        if (moreBtn) {
+            e.stopPropagation();
+            const wrap = moreBtn.closest('.comment-more-wrap');
+            const menu = wrap.querySelector('.comment-more-menu');
+            document.querySelectorAll('.comment-more-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+            return;
+        }
+        const editBtn = e.target.closest('.comment-edit-btn');
+        if (editBtn) {
+            const item = editBtn.closest('.comment-item');
+            const menu = item.querySelector('.comment-more-menu');
+            menu.style.display = 'none';
+            const commentId = item.dataset.commentId;
+            const textEl = item.querySelector('.comment-text');
+            const original = textEl.textContent;
+            const input = document.createElement('input');
+            input.type = 'text'; input.value = original; input.className = 'comment-input comment-edit-input';
+            textEl.replaceWith(input); input.focus();
+            const save = async () => {
+                const newText = input.value.trim();
+                if (!newText || newText === original) { input.replaceWith(textEl); return; }
+                const { error } = await supabase.from('comments').update({ content: newText }).eq('id', commentId);
+                if (error) { showToast('수정 실패: ' + error.message); input.replaceWith(textEl); return; }
+                textEl.textContent = newText; input.replaceWith(textEl);
+                showToast('댓글이 수정됐어요.');
+            };
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') input.replaceWith(textEl); });
+            input.addEventListener('blur', save);
+            return;
+        }
+        const deleteBtn = e.target.closest('.comment-delete-btn');
+        if (deleteBtn) {
+            const item = deleteBtn.closest('.comment-item');
+            item.querySelector('.comment-more-menu').style.display = 'none';
+            const ok = await ugConfirm('이 댓글을 삭제할까요?', { title: '댓글 삭제', icon: 'delete', confirmText: '삭제', danger: true });
+            if (!ok) return;
+            const { error } = await supabase.from('comments').delete().eq('id', item.dataset.commentId);
+            if (error) { showToast('삭제 실패: ' + error.message); return; }
+            item.style.animation = 'fadeOut 0.3s ease forwards';
+            setTimeout(() => item.remove(), 300);
+            showToast('댓글이 삭제됐어요.');
+            return;
+        }
+        const reportBtn = e.target.closest('.comment-report-btn');
+        if (reportBtn) {
+            const item = reportBtn.closest('.comment-item');
+            item.querySelector('.comment-more-menu').style.display = 'none';
+            openReportModal(item.dataset.postId || post.id, 'comment', item.dataset.commentId);
+        }
+    });
+
     return article;
 }
 
 function createCommentEl(c) {
     const div = document.createElement('div');
     div.className = 'comment-item';
+    div.dataset.commentId = c.id;
+    div.dataset.userId = c.user_id;
     const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
     const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+    const isOwner = _currentUser && _currentUser.id === c.user_id;
     div.innerHTML = `
         <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
         <div class="comment-bubble">
             <span class="comment-user">@${displayName}</span>
             <p class="comment-text">${escapeHtml(c.content || '')}</p>
             <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
+        </div>
+        <div class="comment-more-wrap">
+            <button class="comment-more-btn"><span class="material-symbols-rounded">more_horiz</span></button>
+            <div class="comment-more-menu" style="display:none;">
+                ${isOwner ? `
+                <button class="comment-menu-item comment-edit-btn"><span class="material-symbols-rounded">edit</span>수정</button>
+                <button class="comment-menu-item comment-delete-btn" style="color:var(--error);"><span class="material-symbols-rounded">delete</span>삭제</button>
+                ` : ''}
+                <button class="comment-menu-item comment-report-btn"><span class="material-symbols-rounded">flag</span>신고</button>
+            </div>
         </div>`;
+
+    // 점 3개 메뉴 토글
+    const moreBtn = div.querySelector('.comment-more-btn');
+    const moreMenu = div.querySelector('.comment-more-menu');
+    moreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.comment-more-menu').forEach(m => { if (m !== moreMenu) m.style.display = 'none'; });
+        moreMenu.style.display = moreMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', () => { moreMenu.style.display = 'none'; });
+
+    // 수정
+    div.querySelector('.comment-edit-btn')?.addEventListener('click', async () => {
+        moreMenu.style.display = 'none';
+        const textEl = div.querySelector('.comment-text');
+        const original = c.content || '';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = original;
+        input.className = 'comment-input comment-edit-input';
+        textEl.replaceWith(input);
+        input.focus();
+        const save = async () => {
+            const newText = input.value.trim();
+            if (!newText || newText === original) { input.replaceWith(textEl); return; }
+            const { error } = await supabase.from('comments').update({ content: newText }).eq('id', c.id);
+            if (error) { showToast('수정 실패: ' + error.message); input.replaceWith(textEl); return; }
+            c.content = newText;
+            textEl.textContent = newText;
+            input.replaceWith(textEl);
+            showToast('댓글이 수정됐어요.');
+        };
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { input.replaceWith(textEl); } });
+        input.addEventListener('blur', save);
+    });
+
+    // 삭제
+    div.querySelector('.comment-delete-btn')?.addEventListener('click', async () => {
+        moreMenu.style.display = 'none';
+        const ok = await ugConfirm('이 댓글을 삭제할까요?', { title: '댓글 삭제', icon: 'delete', confirmText: '삭제', danger: true });
+        if (!ok) return;
+        const { error } = await supabase.from('comments').delete().eq('id', c.id);
+        if (error) { showToast('삭제 실패: ' + error.message); return; }
+        div.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => div.remove(), 300);
+        showToast('댓글이 삭제됐어요.');
+    });
+
+    // 신고
+    div.querySelector('.comment-report-btn')?.addEventListener('click', () => {
+        moreMenu.style.display = 'none';
+        openReportModal(c.post_id, 'comment', c.id);
+    });
+
     return div;
 }
 
@@ -370,13 +493,24 @@ function buildCommentsHtml(comments) {
     return comments.map(c => {
         const displayName = c.profiles?.username || c.user_id?.slice(0, 8) || 'anonymous';
         const avatarSrc   = c.profiles?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${c.user_id}`;
+        const isOwner = _currentUser && _currentUser.id === c.user_id;
         return `
-            <div class="comment-item">
+            <div class="comment-item" data-comment-id="${c.id}" data-user-id="${c.user_id}" data-post-id="${c.post_id || ''}">
                 <img class="comment-avatar-sm" src="${avatarSrc}" alt="">
                 <div class="comment-bubble">
                     <span class="comment-user">@${displayName}</span>
                     <p class="comment-text">${escapeHtml(c.content || '')}</p>
                     <span class="comment-time">${formatTime(new Date(c.created_at))}</span>
+                </div>
+                <div class="comment-more-wrap">
+                    <button class="comment-more-btn"><span class="material-symbols-rounded">more_horiz</span></button>
+                    <div class="comment-more-menu" style="display:none;">
+                        ${isOwner ? `
+                        <button class="comment-menu-item comment-edit-btn"><span class="material-symbols-rounded">edit</span>수정</button>
+                        <button class="comment-menu-item comment-delete-btn" style="color:var(--error);"><span class="material-symbols-rounded">delete</span>삭제</button>
+                        ` : ''}
+                        <button class="comment-menu-item comment-report-btn"><span class="material-symbols-rounded">flag</span>신고</button>
+                    </div>
                 </div>
             </div>`;
     }).join('');
@@ -505,8 +639,12 @@ function setupReportModal() {
 }
 
 let _reportingPostId = null;
-function openReportModal(postId) {
+let _reportingCommentId = null;
+let _reportingType = 'post';
+function openReportModal(postId, type = 'post', commentId = null) {
     _reportingPostId = postId;
+    _reportingType = type;
+    _reportingCommentId = commentId;
     document.querySelectorAll('#report-modal input[type=checkbox]').forEach(cb => cb.checked = false);
     document.getElementById('report-overlay').classList.add('open');
     document.getElementById('report-modal').classList.add('slide-up');
@@ -515,6 +653,8 @@ function closeReportModal() {
     document.getElementById('report-overlay').classList.remove('open');
     document.getElementById('report-modal').classList.remove('slide-up');
     _reportingPostId = null;
+    _reportingCommentId = null;
+    _reportingType = 'post';
 }
 async function submitReport() {
     const user = await getCurrentUser();
@@ -529,7 +669,13 @@ async function submitReport() {
     if (checked.length === 0) { showToast('신고 이유를 하나 이상 선택해주세요.'); return; }
     const btn = document.getElementById('report-submit-btn');
     btn.disabled = true; btn.textContent = '제출 중...';
-    const { error } = await supabase.from('reports').insert({ reporter_id: user.id, post_id: _reportingPostId, reasons: checked });
+    const insertData = { reporter_id: user.id, reasons: checked };
+    if (_reportingType === 'comment' && _reportingCommentId) {
+        insertData.comment_id = _reportingCommentId;
+    } else {
+        insertData.post_id = _reportingPostId;
+    }
+    const { error } = await supabase.from('reports').insert(insertData);
     btn.disabled = false; btn.textContent = '신고 제출';
     if (error) { showToast('신고 실패: ' + error.message); return; }
     closeReportModal();
