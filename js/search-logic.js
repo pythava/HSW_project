@@ -227,36 +227,49 @@ async function openPostModal(post) {
     if (overlay) overlay.remove();
     overlay = document.createElement('div');
     overlay.id = 'srch-post-modal-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);overflow:hidden;';
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
+    const mediaHtmlV = imgs.length > 1
+        ? `<div style="position:relative;background:#000;width:100%;aspect-ratio:1/1;overflow:hidden;flex-shrink:0;">
+            <div id="srch-modal-slides" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+                ${imgs.map((u,i) => `<img src="${u}" style="max-width:100%;max-height:100%;object-fit:contain;display:${i===0?'block':'none'};">`).join('')}
+            </div>
+            <button onclick="srchModalCarousel(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2;">&#8249;</button>
+            <button onclick="srchModalCarousel(1)"  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2;">&#8250;</button>
+            <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px;" id="srch-modal-dots">
+                ${imgs.map((_,i) => `<div style="width:6px;height:6px;border-radius:50%;background:${i===0?'#fff':'rgba(255,255,255,0.4)'};transition:background 0.2s;"></div>`).join('')}
+            </div></div>`
+        : imgs.length === 1
+        ? `<div style="background:#000;width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+            <img src="${imgs[0]}" style="max-width:100%;max-height:100%;object-fit:contain;"></div>`
+        : '';
+
     overlay.innerHTML = `
-    <style>@keyframes srchModalIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}</style>
-    <div style="display:flex;flex-direction:${hasImg?'row':'column'};width:${hasImg?'min(900px,94vw)':'min(520px,94vw)'};max-height:90vh;background:var(--bg-1);border-radius:16px;overflow:hidden;border:1px solid var(--border);animation:srchModalIn 0.22s cubic-bezier(0.34,1.56,0.64,1);">
-        ${hasImg ? mediaHtml : ''}
-        <div style="width:${hasImg?'340px':'100%'};min-width:${hasImg?'280px':'unset'};flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-1);">
-            <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
-                <img src="${avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${p.user_id}'">
-                <div>
-                    <div style="font-weight:700;font-size:0.88rem;color:var(--text-0);">@${escHtml(username)}</div>
-                    <div style="font-size:0.72rem;color:var(--text-3);">${timeStr}</div>
-                </div>
-                <button onclick="document.getElementById('srch-post-modal-overlay').remove()" style="margin-left:auto;width:30px;height:30px;background:var(--bg-2);border:none;border-radius:50%;color:var(--text-2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+    <style>@keyframes srchModalIn{from{opacity:0;transform:translateY(30px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}</style>
+    <div style="display:flex;flex-direction:column;width:min(480px,100vw);max-height:92vh;background:var(--bg-1);border-radius:20px;overflow:hidden;border:1px solid var(--border);animation:srchModalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);position:relative;">
+        <button onclick="document.getElementById('srch-post-modal-overlay').remove()" style="position:absolute;top:12px;right:12px;z-index:10;width:30px;height:30px;background:rgba(0,0,0,0.45);border:none;border-radius:50%;color:#fff;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">✕</button>
+        ${mediaHtmlV}
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+            <img src="${avatar}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${p.user_id}'">
+            <div>
+                <div style="font-weight:700;font-size:0.86rem;color:var(--text-0);">@${escHtml(username)}</div>
+                <div style="font-size:0.7rem;color:var(--text-3);">${timeStr}</div>
             </div>
-            <div style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0;">
-                ${p.title ? `<div style="font-size:1.05rem;font-weight:800;color:var(--text-0);line-height:1.3;">${escHtml(p.title)}</div>` : ''}
-                ${plainContent ? `<p style="font-size:0.88rem;color:var(--text-1);line-height:1.75;white-space:pre-wrap;margin:0;">${escHtml(plainContent)}</p>` : ''}
-                ${tagsHtml ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${tagsHtml}</div>` : ''}
+        </div>
+        <div style="overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+            ${p.title ? `<div style="font-size:1rem;font-weight:800;color:var(--text-0);line-height:1.3;">${escHtml(p.title)}</div>` : ''}
+            ${plainContent ? `<p style="font-size:0.875rem;color:var(--text-1);line-height:1.75;white-space:pre-wrap;margin:0;">${escHtml(plainContent)}</p>` : ''}
+            ${tagsHtml ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${tagsHtml}</div>` : ''}
+        </div>
+        <div style="padding:10px 16px 14px;border-top:1px solid var(--border);display:flex;gap:16px;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:5px;color:var(--text-2);font-size:0.85rem;">
+                <span class="material-symbols-rounded" style="font-size:18px;color:#f43f5e;">favorite</span>
+                <span style="font-weight:600;">${likeCount}</span>
             </div>
-            <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:18px;flex-shrink:0;">
-                <div style="display:flex;align-items:center;gap:5px;color:var(--text-2);font-size:0.85rem;">
-                    <span class="material-symbols-rounded" style="font-size:18px;color:#f43f5e;">favorite</span>
-                    <span style="font-weight:600;">${likeCount}</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:5px;color:var(--text-2);font-size:0.85rem;">
-                    <span class="material-symbols-rounded" style="font-size:18px;">chat_bubble</span>
-                    <span style="font-weight:600;">${commentCount}</span>
-                </div>
+            <div style="display:flex;align-items:center;gap:5px;color:var(--text-2);font-size:0.85rem;">
+                <span class="material-symbols-rounded" style="font-size:18px;">chat_bubble</span>
+                <span style="font-weight:600;">${commentCount}</span>
             </div>
         </div>
     </div>`;
