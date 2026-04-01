@@ -193,7 +193,7 @@
    게시물 카드 — 컴팩트
 ───────────────────────────────────────── */
 .post-card {
-    margin: 0 16px 12px;
+    margin: 0 28px 12px;
     background: var(--bg-1);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -376,6 +376,77 @@
     display: flex;
     gap: 8px;
     align-items: flex-start;
+    position: relative;
+}
+.comment-item:hover .comment-more-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+.comment-more-wrap {
+    position: relative;
+    flex-shrink: 0;
+    align-self: center;
+}
+.comment-more-btn {
+    opacity: 0;
+    pointer-events: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-3);
+    padding: 2px 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    line-height: 1;
+}
+.comment-more-btn:hover {
+    background: var(--bg-3);
+    color: var(--text-0);
+}
+.comment-more-btn .material-symbols-rounded {
+    font-size: 18px;
+}
+.comment-more-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    min-width: 110px;
+    z-index: 200;
+    overflow: hidden;
+}
+.comment-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 9px 13px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-1);
+    font-size: 0.84rem;
+    font-family: inherit;
+    transition: background 0.15s;
+    text-align: left;
+}
+.comment-menu-item:hover { background: var(--bg-2); }
+.comment-menu-item .material-symbols-rounded { font-size: 16px; }
+.comment-edit-input {
+    font-size: 0.84rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--primary);
+    background: var(--bg-1);
+    color: var(--text-0);
+    width: 100%;
+    font-family: inherit;
+    outline: none;
 }
 .comment-avatar-sm {
     width: 26px;
