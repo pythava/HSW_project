@@ -13,7 +13,7 @@
 </head>
 <body>
     <div class="ug-layout">
-
+ 
         <nav class="ug-side-nav">
             <div class="nav-header">
                 <a href="./index.html" class="logo">UnderGarden</a>
@@ -43,9 +43,9 @@
                 </button>
             </div>
         </nav>
-
+ 
         <main class="ug-main-feed search-main">
-
+ 
             <div class="search-header">
                 <div class="search-bar-wrap">
                     <span class="material-symbols-rounded search-icon">search</span>
@@ -56,7 +56,7 @@
                     </button>
                 </div>
             </div>
-
+ 
             <!-- 기본 화면 -->
             <div id="search-default" class="search-scroll-area">
                 <div class="section-block">
@@ -87,17 +87,17 @@
                     </div>
                 </div>
             </div>
-
+ 
             <!-- 검색 결과 화면 -->
             <div id="search-results" class="search-scroll-area" style="display:none;">
-
+ 
                 <div class="search-filter-bar">
                     <button class="filter-tab active" data-filter="all">모두</button>
                     <button class="filter-tab" data-filter="pam">팸만</button>
                     <button class="filter-tab" data-filter="user">유저만</button>
                     <button class="filter-tab" data-filter="post">게시물만</button>
                 </div>
-
+ 
                 <div id="result-users-section" class="result-section">
                     <div class="result-section-header">
                         <span>유저</span>
@@ -107,42 +107,35 @@
                     </div>
                     <div id="result-users" class="user-list"></div>
                 </div>
-
+ 
                 <div id="result-pams-section" class="result-section">
                     <div class="result-section-header"><span>팸</span></div>
                     <div id="result-pams" class="pams-result-row"></div>
                 </div>
-
+ 
                 <div id="result-posts-section" class="result-section">
                     <div class="result-section-header"><span>게시물</span></div>
                     <div id="result-posts" class="posts-grid"></div>
                 </div>
-
+ 
                 <div id="no-results" class="no-results" style="display:none;">
                     <span class="material-symbols-rounded">search_off</span>
                     <p>검색 결과가 없어요</p>
                     <small>다른 키워드로 검색해보세요</small>
                 </div>
             </div>
-
+ 
         </main>
-
+ 
         <aside class="ug-right-panel">
             <div id="auth-section" class="auth-status-card">
                 <div class="loader-small">연결 중...</div>
             </div>
             <div class="right-panel-content">
-                <div class="adfit-sidebar-wrapper" style="display:flex;justify-content:center;padding:10px 0;">
-                    <ins class="kakao_ad_area" style="display:none;"
-                        data-ad-unit="DAN-K1qvfEN0dl3sL7tt"
-                        data-ad-width="320"
-                        data-ad-height="480"></ins>
-                    <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
-                </div>
             </div>
         </aside>
     </div>
-
+ 
     <script src="./js/supabase-config.js"></script>
     <script src="./js/common-ui.js"></script>
     <script src="./js/auth-handler.js"></script>
