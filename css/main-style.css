@@ -383,9 +383,10 @@
     pointer-events: auto;
 }
 .comment-more-wrap {
-    position: relative;
+    position: absolute;
+    right: 0;
+    top: -8px;
     flex-shrink: 0;
-    align-self: center;
 }
 .comment-more-btn {
     opacity: 0;
