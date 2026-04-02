@@ -18,7 +18,7 @@
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    padding: clamp(14px, 4.0vh, 30px) 20px clamp(10px, 1.5vh, 20px);
+    padding: clamp(14px, 2.2vh, 30px) 20px clamp(10px, 1.5vh, 20px);
     height: 100%;
     overflow: hidden; /* 가로 넘침 방지 */
 }
@@ -51,9 +51,9 @@
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: clamp(8px, 1.2vh, 12px) 18px;
+    padding: clamp(9px, 1.5vh, 12px) 18px;
     color: var(--text-2);
-    font-size: clamp(0.88rem, 1.1vw, 1.05rem);
+    font-size: clamp(0.92rem, 1.3vw, 1.05rem);
     font-weight: 600;
     border-radius: 12px;
     width: 100%;
@@ -87,7 +87,7 @@
     transform: translateY(-2px);
 }
 .ug-side-nav span.material-symbols-rounded {
-    font-size: clamp(20px, 2vw, 26px);
+    font-size: clamp(22px, 2.2vw, 26px);
     flex-shrink: 0;
 }
 
@@ -999,4 +999,3 @@
     .ug-side-nav .nav-footer button { padding: 7px; }
     .ug-side-nav .nav-links li { margin-bottom: 0; }
 }
-
