@@ -603,3 +603,115 @@
 .recommend-name { font-size: 0.83rem; font-weight: 600; color: var(--text-1); }
 .recommend-price { font-size: 0.75rem; color: var(--text-3); }
 
+
+/* ─────────────────────────────────────────
+   배너 상점
+───────────────────────────────────────── */
+.banner-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.banner-shop-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.banner-shop-card:hover {
+    border-color: rgba(157,78,221,0.5);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.banner-preview {
+    width: 100%;
+    height: 100px;
+    display: block;
+    flex-shrink: 0;
+}
+
+.banner-shop-info {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.banner-shop-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-0);
+}
+
+.banner-shop-price {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.banner-price-luna {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #c77dff;
+}
+
+.banner-owned-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #22c55e;
+}
+.banner-owned-label .material-symbols-rounded {
+    font-size: 16px;
+    font-variation-settings: 'FILL' 1;
+}
+
+.banner-buy-btn {
+    padding: 9px;
+    border-radius: 10px;
+    background: var(--primary);
+    color: white;
+    font-size: 0.88rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+    width: 100%;
+    font-family: inherit;
+}
+.banner-buy-btn:hover:not(:disabled) { background: var(--primary-hover); }
+.banner-buy-btn.owned {
+    background: var(--bg-2);
+    color: var(--text-3);
+    border: 1px solid var(--border);
+    cursor: default;
+}
+
+/* 우측 패널 보유 배너 */
+.owned-banners-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.owned-banner-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.owned-banner-swatch {
+    width: 44px;
+    height: 28px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+}
+.owned-banner-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-1);
+}
