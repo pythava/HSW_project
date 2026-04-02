@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isOwner = currentUser && currentUser.id === profileUserId;
 
     await loadProfile(profileUserId, isOwner, currentUser);
+    await initBannerSystem(profileUserId, isOwner);
     await loadUserPams(profileUserId);
     await loadUserPosts(profileUserId);
 
@@ -459,4 +460,167 @@ function showToast(msg) {
     t.textContent = msg; t.classList.add('show');
     clearTimeout(t._timer);
     t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* ─────────────────────────────────────────
+   배너 시스템
+───────────────────────────────────────── */
+
+// 배너 정의 (shop-logic.js와 동일하게 유지)
+const PROFILE_BANNERS = [
+    { id: 'banner_violet',   name: '보라빛 심연',  preview: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' },
+    { id: 'banner_rose',     name: '장미빛 새벽',  preview: 'linear-gradient(135deg, #e11d48 0%, #9f1239 100%)' },
+    { id: 'banner_ocean',    name: '심해의 파랑',  preview: 'linear-gradient(135deg, #0284c7 0%, #075985 100%)' },
+    { id: 'banner_forest',   name: '어두운 숲',    preview: 'linear-gradient(135deg, #16a34a 0%, #14532d 100%)' },
+    { id: 'banner_ember',    name: '잿빛 불꽃',    preview: 'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)' },
+    { id: 'banner_midnight', name: '미드나잇',     preview: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' },
+];
+
+let _profileBannerOwned = [];
+let _currentBannerId = null;
+let _selectedBannerId = null; // 모달 내 임시 선택
+
+async function initBannerSystem(userId, isOwner) {
+    // 현재 배너 로드
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('banner_id')
+        .eq('id', userId)
+        .single();
+
+    _currentBannerId = profile?.banner_id || null;
+    applyBannerToDOM(_currentBannerId);
+
+    if (!isOwner) return;
+
+    // 보유 배너 로드
+    const { data: owned } = await supabase
+        .from('user_banners')
+        .select('banner_id')
+        .eq('user_id', userId);
+    _profileBannerOwned = (owned || []).map(r => r.banner_id);
+
+    // 배너 수정 버튼 표시
+    const editBtn = document.getElementById('banner-edit-btn');
+    if (editBtn) {
+        editBtn.style.display = 'flex';
+        editBtn.addEventListener('click', () => openBannerModal(userId));
+    }
+}
+
+function applyBannerToDOM(bannerId) {
+    const bg = document.getElementById('profile-banner-bg');
+    if (!bg) return;
+    if (!bannerId) {
+        bg.style.background = 'var(--bg-2)';
+        return;
+    }
+    const banner = PROFILE_BANNERS.find(b => b.id === bannerId);
+    if (banner) {
+        bg.style.background = banner.preview;
+    }
+}
+
+function openBannerModal(userId) {
+    _selectedBannerId = _currentBannerId;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'banner-modal-overlay';
+
+    const hasOwned = _profileBannerOwned.length > 0;
+
+    overlay.innerHTML = `
+    <div class="banner-modal">
+        <div class="banner-modal-header">
+            <div class="banner-modal-title">프로필 배너 선택</div>
+            <button class="banner-modal-close" id="bm-close">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <div class="banner-modal-body">
+            <div class="banner-modal-section-title">배너 없음</div>
+            <div class="banner-option-none ${!_selectedBannerId ? 'selected' : ''}" data-id="">
+                <div class="banner-none-swatch"></div>
+                <span>배너 없음</span>
+            </div>
+
+            <div class="banner-modal-section-title">보유 배너</div>
+            ${hasOwned ? `
+            <div class="banner-options-grid" id="bm-grid">
+                ${_profileBannerOwned.map(id => {
+                    const b = PROFILE_BANNERS.find(x => x.id === id);
+                    if (!b) return '';
+                    const isSelected = _selectedBannerId === id;
+                    return `
+                    <div class="banner-option ${isSelected ? 'selected' : ''}" data-id="${id}">
+                        <div class="banner-option-preview" style="background: ${b.preview};"></div>
+                        <div class="banner-option-info">
+                            <span class="banner-option-name">${b.name}</span>
+                            <span class="material-symbols-rounded banner-option-check">check_circle</span>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>` : `
+            <div class="banner-empty-msg">
+                아직 배너가 없어요.<br>
+                <a href="../shop/index.html" style="color:var(--primary);font-weight:700;">상점</a>에서 배너를 구매해보세요!
+            </div>`}
+        </div>
+        <div class="banner-modal-footer">
+            <button class="banner-modal-cancel" id="bm-cancel">취소</button>
+            <button class="banner-apply-btn" id="bm-apply">적용하기</button>
+        </div>
+    </div>`;
+
+    document.body.appendChild(overlay);
+
+    // 선택 이벤트
+    overlay.querySelectorAll('.banner-option, .banner-option-none').forEach(el => {
+        el.addEventListener('click', () => {
+            overlay.querySelectorAll('.banner-option, .banner-option-none').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            _selectedBannerId = el.dataset.id || null;
+            // 미리보기
+            applyBannerToDOM(_selectedBannerId);
+        });
+    });
+
+    overlay.querySelector('#bm-close').addEventListener('click', () => {
+        applyBannerToDOM(_currentBannerId); // 원래대로 복원
+        overlay.remove();
+    });
+    overlay.querySelector('#bm-cancel').addEventListener('click', () => {
+        applyBannerToDOM(_currentBannerId);
+        overlay.remove();
+    });
+    overlay.querySelector('#bm-apply').addEventListener('click', async () => {
+        await applyBanner(userId, _selectedBannerId);
+        overlay.remove();
+    });
+    overlay.addEventListener('click', e => {
+        if (e.target === overlay) {
+            applyBannerToDOM(_currentBannerId);
+            overlay.remove();
+        }
+    });
+}
+
+async function applyBanner(userId, bannerId) {
+    const applyBtn = document.getElementById('bm-apply');
+    if (applyBtn) { applyBtn.textContent = '저장 중...'; applyBtn.disabled = true; }
+
+    const { error } = await supabase
+        .from('profiles')
+        .update({ banner_id: bannerId || null })
+        .eq('id', userId);
+
+    if (error) {
+        console.error('배너 저장 실패:', error);
+        showToast('배너 저장에 실패했어요.');
+        return;
+    }
+
+    _currentBannerId = bannerId;
+    applyBannerToDOM(bannerId);
+    showToast('✨ 배너가 적용됐어요!');
 }
