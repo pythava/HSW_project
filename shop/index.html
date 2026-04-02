@@ -81,7 +81,7 @@
                         <span class="shop-title-text">UNDER GARDEN</span>
                         <span class="shop-star">✦</span>
                     </div>
-                    <p class="shop-hero-sub">아직 기능 구현중이니 막 만지지 마세요~</p>
+                    <p class="shop-hero-sub">특별한 프로필 배너로 나만의 개성을 표현하세요</p>
                     <div class="shop-my-luna" id="shop-my-luna">
                         <span class="material-symbols-rounded">stars</span>
                         <span>내 루나: <strong id="my-luna-count">--</strong></span>
@@ -93,8 +93,7 @@
             <div class="shop-tab-bar">
                 <button class="shop-tab active" data-tab="luna">💫 루나 충전</button>
                 <button class="shop-tab" data-tab="membership">👑 멤버십</button>
-                <button class="shop-tab" data-tab="items">🎁 아이템</button>
-                <button class="shop-tab" data-tab="badge">🏷️ 뱃지</button>
+                <button class="shop-tab" data-tab="banner">🎨 프로필 배너</button>
             </div>
 
             <!-- 상점 콘텐츠 스크롤 영역 -->
@@ -106,7 +105,7 @@
                         <span class="material-symbols-rounded">bolt</span>
                         루나(Luna)란?
                     </div>
-                    <p class="shop-desc-text">루나는 UnderGarden의 전용 재화입니다.<br>멤버십 구독, 프리미엄 뱃지, 특별 아이템을 구매할 수 있어요.</p>
+                    <p class="shop-desc-text">루나는 UnderGarden의 전용 재화입니다.<br>멤버십 구독, 프로필 배너 등을 구매할 수 있어요.</p>
 
                     <div class="shop-section-label" style="margin-top:24px;">
                         <span class="material-symbols-rounded">currency_exchange</span>
@@ -172,7 +171,7 @@
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>기본 게시물 작성</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>팸 가입 (최대 3개)</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>기본 프로필 꾸미기</li>
-                                <li class="perk-off"><span class="material-symbols-rounded">cancel</span>프리미엄 뱃지</li>
+                                <li class="perk-off"><span class="material-symbols-rounded">cancel</span>프리미엄 배너</li>
                                 <li class="perk-off"><span class="material-symbols-rounded">cancel</span>광고 제거</li>
                             </ul>
                             <button class="membership-btn current-tier">현재 등급</button>
@@ -191,7 +190,7 @@
                             <ul class="membership-perks">
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>Seed 모든 혜택 포함</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>팸 가입 무제한</li>
-                                <li><span class="material-symbols-rounded perk-check">check_circle</span>Bloom 전용 뱃지</li>
+                                <li><span class="material-symbols-rounded perk-check">check_circle</span>Bloom 전용 배너</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>광고 제거</li>
                                 <li class="perk-off"><span class="material-symbols-rounded">cancel</span>프로필 애니메이션</li>
                             </ul>
@@ -210,7 +209,7 @@
                             <ul class="membership-perks">
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>Bloom 모든 혜택 포함</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>프로필 글로우 효과</li>
-                                <li><span class="material-symbols-rounded perk-check">check_circle</span>Abyss 전용 뱃지</li>
+                                <li><span class="material-symbols-rounded perk-check">check_circle</span>Abyss 전용 배너</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>매월 300 Luna 지급</li>
                                 <li><span class="material-symbols-rounded perk-check">check_circle</span>심연 채팅 채널 접근</li>
                             </ul>
@@ -219,159 +218,16 @@
                     </div>
                 </div>
 
-                <!-- 아이템 탭 -->
-                <div class="shop-pane" id="pane-items">
+                <!-- 배너 탭 -->
+                <div class="shop-pane" id="pane-banner">
                     <div class="shop-section-label">
-                        <span class="material-symbols-rounded">category</span>
-                        프리미엄 아이템
+                        <span class="material-symbols-rounded">panorama</span>
+                        프로필 배너
                     </div>
-                    <p class="shop-desc-text">프로필과 게시물을 더욱 특별하게 꾸며보세요.</p>
+                    <p class="shop-desc-text">프로필 상단을 꾸며줄 배너를 구매하고 적용해보세요.<br>구매 후 프로필에서 배너를 선택할 수 있어요.</p>
 
-                    <div class="shop-grid items-grid">
-                        <div class="shop-card item-card">
-                            <div class="item-preview" style="background: linear-gradient(135deg, #9d4edd, #c77dff);">
-                                <span style="font-size:32px;">🌿</span>
-                            </div>
-                            <div class="item-info">
-                                <div class="item-name">가든 프레임</div>
-                                <div class="item-desc">프로필 사진에 덩굴 프레임 효과</div>
-                                <div class="item-footer">
-                                    <span class="item-price">🌙 80 Luna</span>
-                                    <button class="shop-buy-btn sm">구매</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="shop-card item-card">
-                            <div class="item-preview" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
-                                <span style="font-size:32px;">🌑</span>
-                            </div>
-                            <div class="item-info">
-                                <div class="item-name">심연의 오라</div>
-                                <div class="item-desc">프로필 주변 글로우 이펙트</div>
-                                <div class="item-footer">
-                                    <span class="item-price">🌙 150 Luna</span>
-                                    <button class="shop-buy-btn sm">구매</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="shop-card item-card">
-                            <div class="item-preview" style="background: linear-gradient(135deg, #f72585, #7209b7);">
-                                <span style="font-size:32px;">✨</span>
-                            </div>
-                            <div class="item-info">
-                                <div class="item-name">스타더스트 닉네임</div>
-                                <div class="item-desc">닉네임에 반짝이 파티클 효과</div>
-                                <div class="item-footer">
-                                    <span class="item-price">🌙 200 Luna</span>
-                                    <button class="shop-buy-btn sm">구매</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="shop-card item-card">
-                            <div class="item-preview" style="background: linear-gradient(135deg, #0d1b2a, #1b4332);">
-                                <span style="font-size:32px;">🕯️</span>
-                            </div>
-                            <div class="item-info">
-                                <div class="item-name">캔들라이트 테마</div>
-                                <div class="item-desc">프로필 배경 은은한 촛불 효과</div>
-                                <div class="item-footer">
-                                    <span class="item-price">🌙 120 Luna</span>
-                                    <button class="shop-buy-btn sm">구매</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="shop-card item-card">
-                            <div class="item-preview" style="background: linear-gradient(135deg, #240046, #9d4edd);">
-                                <span style="font-size:32px;">🔮</span>
-                            </div>
-                            <div class="item-info">
-                                <div class="item-name">미스틱 게시물 테두리</div>
-                                <div class="item-desc">내 게시물에 보라빛 마법 테두리</div>
-                                <div class="item-footer">
-                                    <span class="item-price">🌙 300 Luna</span>
-                                    <button class="shop-buy-btn sm">구매</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="shop-card item-card">
-                            <div class="item-preview" style="background: linear-gradient(135deg, #0a0a0a, #333);">
-                                <span style="font-size:32px;">🖤</span>
-                            </div>
-                            <div class="item-info">
-                                <div class="item-name">다크 레전드 배경</div>
-                                <div class="item-desc">프로필 배경 흑요석 텍스처</div>
-                                <div class="item-footer">
-                                    <span class="item-price">🌙 180 Luna</span>
-                                    <button class="shop-buy-btn sm">구매</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 뱃지 탭 -->
-                <div class="shop-pane" id="pane-badge">
-                    <div class="shop-section-label">
-                        <span class="material-symbols-rounded">verified</span>
-                        프로필 뱃지
-                    </div>
-                    <p class="shop-desc-text">당신의 정체성을 나타내는 특별한 뱃지를 달아보세요.</p>
-
-                    <div class="badge-grid">
-                        <div class="badge-card">
-                            <div class="badge-icon-wrap" style="background: linear-gradient(135deg, #9d4edd, #c77dff);">
-                                <span>🌿</span>
-                            </div>
-                            <div class="badge-name">가든 탐험가</div>
-                            <div class="badge-desc">심연의 가든을 처음 탐험한 자</div>
-                            <div class="badge-price">🌙 50 Luna</div>
-                            <button class="shop-buy-btn sm badge-buy">획득하기</button>
-                        </div>
-                        <div class="badge-card">
-                            <div class="badge-icon-wrap" style="background: linear-gradient(135deg, #f72585, #b5179e);">
-                                <span>🌸</span>
-                            </div>
-                            <div class="badge-name">블룸 마스터</div>
-                            <div class="badge-desc">꽃을 피운 자의 증표</div>
-                            <div class="badge-price">🌙 100 Luna</div>
-                            <button class="shop-buy-btn sm badge-buy">획득하기</button>
-                        </div>
-                        <div class="badge-card">
-                            <div class="badge-icon-wrap" style="background: linear-gradient(135deg, #03045e, #0077b6);">
-                                <span>🌊</span>
-                            </div>
-                            <div class="badge-name">심해의 목소리</div>
-                            <div class="badge-desc">심연에서 울려 퍼지는 목소리</div>
-                            <div class="badge-price">🌙 150 Luna</div>
-                            <button class="shop-buy-btn sm badge-buy">획득하기</button>
-                        </div>
-                        <div class="badge-card">
-                            <div class="badge-icon-wrap" style="background: linear-gradient(135deg, #240046, #7b2d8b);">
-                                <span>🔮</span>
-                            </div>
-                            <div class="badge-name">미스틱 위처</div>
-                            <div class="badge-desc">신비로운 힘을 깨달은 자</div>
-                            <div class="badge-price">🌙 200 Luna</div>
-                            <button class="shop-buy-btn sm badge-buy">획득하기</button>
-                        </div>
-                        <div class="badge-card">
-                            <div class="badge-icon-wrap" style="background: linear-gradient(135deg, #1a1a1a, #555);">
-                                <span>🌑</span>
-                            </div>
-                            <div class="badge-name">어비스 워든</div>
-                            <div class="badge-desc">심연의 수호자. 극소수만 보유</div>
-                            <div class="badge-price">🌙 500 Luna</div>
-                            <button class="shop-buy-btn sm badge-buy">획득하기</button>
-                        </div>
-                        <div class="badge-card">
-                            <div class="badge-icon-wrap" style="background: linear-gradient(135deg, #b8860b, #ffd700);">
-                                <span>👑</span>
-                            </div>
-                            <div class="badge-name">가든 레전드</div>
-                            <div class="badge-desc">가든의 전설. 역사에 이름을 새긴 자</div>
-                            <div class="badge-price">🌙 1,000 Luna</div>
-                            <button class="shop-buy-btn sm badge-buy">획득하기</button>
-                        </div>
+                    <div class="banner-shop-grid" id="banner-shop-grid">
+                        <!-- JS로 렌더링 -->
                     </div>
                 </div>
 
@@ -396,6 +252,17 @@
                 </button>
             </div>
 
+            <!-- 보유 배너 -->
+            <div class="shop-right-section">
+                <div class="shop-right-title">
+                    <span class="material-symbols-rounded">panorama</span>
+                    보유 배너
+                </div>
+                <div id="owned-banners-panel" class="owned-banners-panel">
+                    <div class="shop-history-empty">보유한 배너가 없어요.</div>
+                </div>
+            </div>
+
             <!-- 최근 구매 내역 -->
             <div class="shop-right-section">
                 <div class="shop-right-title">
@@ -404,28 +271,6 @@
                 </div>
                 <div id="shop-history" class="shop-history-list">
                     <div class="shop-history-empty">구매 내역이 없어요.</div>
-                </div>
-            </div>
-
-            <!-- 오늘의 추천 -->
-            <div class="shop-right-section">
-                <div class="shop-right-title">
-                    <span class="material-symbols-rounded">auto_awesome</span>
-                    오늘의 추천
-                </div>
-                <div class="shop-recommend-item">
-                    <div class="recommend-icon">🌸</div>
-                    <div class="recommend-info">
-                        <div class="recommend-name">Bloom 멤버십</div>
-                        <div class="recommend-price">500 Luna / 월</div>
-                    </div>
-                </div>
-                <div class="shop-recommend-item">
-                    <div class="recommend-icon">✨</div>
-                    <div class="recommend-info">
-                        <div class="recommend-name">스타더스트 닉네임</div>
-                        <div class="recommend-price">200 Luna</div>
-                    </div>
                 </div>
             </div>
         </aside>
