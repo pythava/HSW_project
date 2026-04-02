@@ -20,7 +20,6 @@
     flex-direction: column;
     padding: 30px 20px;
     height: 100%;
-    overflow: hidden;
 }
 .ug-side-nav .logo {
     font-size: 1.6rem;
@@ -30,18 +29,8 @@
     margin-bottom: 50px;
     display: block;
     padding-left: 10px;
-    flex-shrink: 0;
 }
-.ug-side-nav .nav-links {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-height: 0;
-}
-/* 스크롤바 스타일링 */
-.ug-side-nav .nav-links::-webkit-scrollbar { width: 3px; }
-.ug-side-nav .nav-links::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
+.ug-side-nav .nav-links { flex: 1; }
 .ug-side-nav .nav-links li { margin-bottom: 8px; }
 .ug-side-nav .nav-links a,
 .ug-side-nav .nav-footer button {
@@ -82,14 +71,6 @@
     transform: translateY(-2px);
 }
 .ug-side-nav span.material-symbols-rounded { font-size: 26px; }
-
-/* nav-footer: 항상 하단에 고정, 절대 잘리지 않도록 */
-.ug-side-nav .nav-footer {
-    flex-shrink: 0;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-    margin-top: 12px;
-}
 
 /* 중앙 피드 */
 .ug-main-feed {
@@ -945,49 +926,17 @@
 @media (max-width: 1100px) {
     .ug-right-panel { display: none; }
 }
-
-/* 화면 높이가 낮을 때 사이드바 패딩/마진 추가 축소 */
-@media (max-height: 700px) {
-    .ug-side-nav {
-        padding-top: 10px;
-        padding-bottom: 8px;
-    }
-    .ug-side-nav .logo { margin-bottom: 10px; font-size: 1.1rem; }
-    .ug-side-nav .nav-links li { margin-bottom: 1px; }
-    .ug-side-nav .nav-links a,
-    .ug-side-nav .nav-footer button { padding: 7px 18px; font-size: 0.9rem; }
-    .ug-side-nav .nav-links a.write-link { margin-top: 8px; }
-    .ug-side-nav span.material-symbols-rounded { font-size: 20px; }
-    .ug-side-nav .nav-footer { padding-top: 6px; margin-top: 6px; }
-}
-
-@media (max-height: 560px) {
-    .ug-side-nav .logo { display: none; }
-    .ug-side-nav .nav-links a,
-    .ug-side-nav .nav-footer button { padding: 6px 18px; font-size: 0.85rem; }
-    .ug-side-nav .nav-links li { margin-bottom: 0; }
-}
-
 @media (max-width: 800px) {
     .ug-side-nav {
         width: clamp(56px, 8vw, 80px);
         min-width: clamp(56px, 8vw, 80px);
-        padding: 16px 8px 10px;
+        padding: 16px 8px;
     }
-    .ug-side-nav .logo { font-size: 1rem; padding-left: 4px; margin-bottom: 16px; }
+    .ug-side-nav .logo { font-size: 1rem; padding-left: 4px; margin-bottom: 24px; }
     .ug-side-nav .nav-links a span:not(.material-symbols-rounded),
     .ug-side-nav .nav-footer button span:not(.material-symbols-rounded) { display: none; }
     .ug-side-nav .nav-links a { padding: 10px; justify-content: center; gap: 0; }
-    .ug-side-nav .nav-links a.write-link { padding: 10px; margin-top: 12px; }
+    .ug-side-nav .nav-links a.write-link { padding: 10px; }
     .ug-side-nav .nav-footer button { padding: 10px; justify-content: center; }
-    .ug-side-nav span.material-symbols-rounded { font-size: 22px; }
     .ug-main-feed { min-width: 0; }
-}
-
-@media (max-width: 800px) and (max-height: 700px) {
-    .ug-side-nav { padding: 10px 6px 8px; }
-    .ug-side-nav .logo { margin-bottom: 8px; }
-    .ug-side-nav .nav-links a,
-    .ug-side-nav .nav-footer button { padding: 7px; }
-    .ug-side-nav .nav-links li { margin-bottom: 0; }
 }
