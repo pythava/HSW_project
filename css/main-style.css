@@ -45,15 +45,15 @@
 .ug-side-nav .nav-links::-webkit-scrollbar { width: 3px; }
 .ug-side-nav .nav-links::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-.ug-side-nav .nav-links li { margin-bottom: clamp(2px, 0.6vh, 8px); }
+.ug-side-nav .nav-links li { margin-bottom: clamp(4px, 0.6vh, 8px); }
 .ug-side-nav .nav-links a,
 .ug-side-nav .nav-footer button {
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: clamp(9px, 1.5vh, 12px) 18px;
+    padding: clamp(10px, 1.5vh, 12px) 18px;
     color: var(--text-2);
-    font-size: clamp(0.92rem, 1.3vw, 1.05rem);
+    font-size: clamp(0.98rem, 1.3vw, 1.05rem);
     font-weight: 600;
     border-radius: 12px;
     width: 100%;
@@ -87,7 +87,7 @@
     transform: translateY(-2px);
 }
 .ug-side-nav span.material-symbols-rounded {
-    font-size: clamp(22px, 2.2vw, 26px);
+    font-size: clamp(24px, 2.2vw, 26px);
     flex-shrink: 0;
 }
 
