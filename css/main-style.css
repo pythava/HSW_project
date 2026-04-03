@@ -11,31 +11,9 @@
 }
 
 /* 좌측 사이드바 */
-.ug-side-nav-wrap {
+.ug-side-nav {
     width: var(--side-nav-width);
     min-width: var(--side-nav-width);
-    height: 100%;
-    position: relative;
-    flex-shrink: 0;
-}
-.ug-side-nav-wrap::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 80px;
-    background: linear-gradient(to bottom, transparent, var(--bg-1));
-    pointer-events: none;
-    z-index: 10;
-    border-right: 1px solid var(--border);
-    transition: opacity 0.3s;
-}
-.ug-side-nav-wrap.scroll-bottom::after {
-    opacity: 0;
-}
-.ug-side-nav {
-    width: 100%;
     background-color: var(--bg-1);
     border-right: 1px solid var(--border);
     display: flex;
@@ -954,11 +932,9 @@
     .ug-right-panel { display: none; }
 }
 @media (max-width: 800px) {
-    .ug-side-nav-wrap {
+    .ug-side-nav {
         width: clamp(56px, 8vw, 80px);
         min-width: clamp(56px, 8vw, 80px);
-    }
-    .ug-side-nav {
         padding: 16px 8px;
     }
     .ug-side-nav .logo { font-size: 1rem; padding-left: 4px; margin-bottom: 24px; }
