@@ -466,21 +466,25 @@ function showToast(msg) {
    배너 시스템
 ───────────────────────────────────────── */
 
-// 배너 정의 (shop-logic.js와 동일하게 유지)
-const PROFILE_BANNERS = [
-    { id: 'banner_violet',   name: '보라빛 심연',  preview: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' },
-    { id: 'banner_rose',     name: '장미빛 새벽',  preview: 'linear-gradient(135deg, #e11d48 0%, #9f1239 100%)' },
-    { id: 'banner_ocean',    name: '심해의 파랑',  preview: 'linear-gradient(135deg, #0284c7 0%, #075985 100%)' },
-    { id: 'banner_forest',   name: '어두운 숲',    preview: 'linear-gradient(135deg, #16a34a 0%, #14532d 100%)' },
-    { id: 'banner_ember',    name: '잿빛 불꽃',    preview: 'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)' },
-    { id: 'banner_midnight', name: '미드나잇',     preview: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' },
-];
+// 배너 정의 — DB에서 로드 (initBannerSystem 호출 시 채워짐)
+let PROFILE_BANNERS = [];
 
 let _profileBannerOwned = [];
 let _currentBannerId = null;
 let _selectedBannerId = null; // 모달 내 임시 선택
 
 async function initBannerSystem(userId, isOwner) {
+    // DB에서 배너 목록 로드
+    const { data: bannerList } = await supabase
+        .from('profile_banners')
+        .select('id, name, color1, color2')
+        .eq('is_active', true);
+    PROFILE_BANNERS = (bannerList || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        preview: `linear-gradient(135deg, ${b.color1} 0%, ${b.color2} 100%)`
+    }));
+
     // 현재 배너 로드
     const { data: profile } = await supabase
         .from('profiles')
