@@ -1,15 +1,6 @@
 /* shop/shop-logic.js */
 
-// ─── 배너 정의 (단색 6개) ───────────────────────────────────────────────────
-const BANNERS = [
-    { id: 'banner_violet',  name: '보라빛 심연',    color: '#7c3aed', price: 100, preview: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' },
-    { id: 'banner_rose',    name: '장미빛 새벽',    color: '#e11d48', price: 100, preview: 'linear-gradient(135deg, #e11d48 0%, #9f1239 100%)' },
-    { id: 'banner_ocean',   name: '심해의 파랑',    color: '#0284c7', price: 100, preview: 'linear-gradient(135deg, #0284c7 0%, #075985 100%)' },
-    { id: 'banner_forest',  name: '어두운 숲',      color: '#16a34a', price: 100, preview: 'linear-gradient(135deg, #16a34a 0%, #14532d 100%)' },
-    { id: 'banner_ember',   name: '잿빛 불꽃',      color: '#ea580c', price: 100, preview: 'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)' },
-    { id: 'banner_midnight',name: '미드나잇',       color: '#1e293b', price: 80,  preview: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' },
-];
-
+let BANNERS = []; // DB에서 로드
 let currentUser = null;
 let ownedBanners = [];
 
@@ -19,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentUser = user;
 
     await loadLunaBalance(user.id);
+    await loadShopBanners();      // DB에서 배너 목록 로드
     await loadOwnedBanners(user.id);
 
     renderBannerShop();
@@ -45,6 +37,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.addEventListener('click', () => showShopToast('🚧 멤버십 기능은 준비 중이에요!'));
     });
 });
+
+// ─── 상점 배너 목록 로드 (DB) ────────────────────────────────────────────────
+async function loadShopBanners() {
+    try {
+        const { data } = await supabase
+            .from('profile_banners')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: true });
+        BANNERS = (data || []).map(b => ({
+            ...b,
+            preview: `linear-gradient(135deg, ${b.color1} 0%, ${b.color2} 100%)`
+        }));
+    } catch (e) {
+        console.warn('배너 목록 로드 실패:', e);
+        BANNERS = [];
+    }
+}
 
 // ─── 루나 잔액 ────────────────────────────────────────────────────────────────
 async function loadLunaBalance(userId) {
