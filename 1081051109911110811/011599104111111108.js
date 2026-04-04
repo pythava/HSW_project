@@ -85,14 +85,15 @@ async function searchUsers() {
 
     container.innerHTML = '<div class="empty-state">검색 중...</div>';
 
+    // ✅ ilike 단일 컬럼으로 수정 (or 문법 오류 방지)
     const { data, error } = await window.supabase
         .from('profiles')
         .select('id, username, avatar_url, created_at')
-        .or(`username.ilike.%${q}%`)
+        .ilike('username', `%${q}%`)
         .limit(30);
 
     if (error || !data?.length) {
-        container.innerHTML = '<div class="empty-state">결과가 없습니다.</div>';
+        container.innerHTML = `<div class="empty-state">결과가 없습니다. ${error ? '(' + error.message + ')' : ''}</div>`;
         return;
     }
 
@@ -105,9 +106,7 @@ async function searchUsers() {
                 <div class="user-card-name">${escHtml(u.username || '(이름 없음)')}</div>
                 <div class="user-card-email">ID: ${u.id.slice(0, 12)}…</div>
             </div>
-            <div class="user-card-meta">
-                가입: ${fmtDate(u.created_at)}
-            </div>
+            <div class="user-card-meta">가입: ${fmtDate(u.created_at)}</div>
         </div>
     `).join('');
 }
@@ -119,15 +118,16 @@ async function searchPosts() {
 
     container.innerHTML = '<div class="empty-state">검색 중...</div>';
 
+    // ✅ title로만 먼저 검색 (posts 테이블 컬럼명 확인 필요)
     const { data, error } = await window.supabase
         .from('posts')
         .select('id, title, content, created_at, user_id')
-        .or(`title.ilike.%${q}%,content.ilike.%${q}%`)
+        .ilike('title', `%${q}%`)
         .order('created_at', { ascending: false })
         .limit(30);
 
     if (error || !data?.length) {
-        container.innerHTML = '<div class="empty-state">결과가 없습니다.</div>';
+        container.innerHTML = `<div class="empty-state">결과가 없습니다. ${error ? '(' + error.message + ')' : ''}</div>`;
         return;
     }
 
@@ -135,9 +135,7 @@ async function searchPosts() {
         <div class="post-card">
             <div class="post-card-title">${escHtml(p.title || '(제목 없음)')}</div>
             <div class="post-card-body">${escHtml(p.content || '')}</div>
-            <div class="post-card-meta">
-                📅 ${fmtDate(p.created_at)} · ID: ${p.id}
-            </div>
+            <div class="post-card-meta">📅 ${fmtDate(p.created_at)} · ID: ${p.id}</div>
         </div>
     `).join('');
 }
