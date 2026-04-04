@@ -138,8 +138,8 @@
             <!-- 배너 관리 -->
             <section id="section-banners" class="admin-section">
                 <div class="section-header">
-                    <h1>배너 관리</h1>
-                    <p class="section-sub">홈 화면 배너를 추가·수정·삭제합니다</p>
+                    <h1>프로필 배너 관리</h1>
+                    <p class="section-sub">상점에서 판매할 프로필 배너를 추가·수정·삭제합니다</p>
                     <button id="banner-add-btn" class="btn-primary" style="margin-top:10px;">
                         <span class="material-symbols-rounded">add</span>배너 추가
                     </button>
@@ -166,29 +166,27 @@
                 <button id="modal-close" class="modal-close-btn"><span class="material-symbols-rounded">close</span></button>
             </div>
             <div class="modal-body">
-                <label class="form-label">배너 제목
-                    <input type="text" id="banner-title-input" class="form-input" placeholder="예) 이벤트 안내">
+                <label class="form-label">배너 ID (영문, 수정 불가)
+                    <input type="text" id="banner-id-input" class="form-input" placeholder="예) banner_gold" maxlength="40">
                 </label>
-                <label class="form-label">부제목 / 설명
-                    <input type="text" id="banner-desc-input" class="form-input" placeholder="예) 지금 바로 참여하세요">
+                <label class="form-label">배너 이름
+                    <input type="text" id="banner-title-input" class="form-input" placeholder="예) 황금빛 여명">
                 </label>
-                <label class="form-label">링크 URL (선택)
-                    <input type="text" id="banner-url-input" class="form-input" placeholder="https://...">
+                <label class="form-label">가격 (Luna)
+                    <input type="number" id="banner-price-input" class="form-input" placeholder="100" min="0" value="100">
                 </label>
-                <label class="form-label">배경색
+                <label class="form-label">그라디언트 색상
                     <div class="color-row">
                         <input type="color" id="banner-color1" class="form-color" value="#9d4edd">
+                        <span style="color:var(--text-3);font-size:0.85rem;">→</span>
                         <input type="color" id="banner-color2" class="form-color" value="#c77dff">
                     </div>
                 </label>
-                <label class="form-label">이모지 아이콘
-                    <input type="text" id="banner-icon-input" class="form-input" placeholder="예) ✦ 🌿 🔥" maxlength="4">
-                </label>
                 <label class="form-label" style="flex-direction:row;align-items:center;gap:12px;">
-                    <input type="checkbox" id="banner-active" checked style="width:18px;height:18px;accent-color:var(--primary);">활성화
+                    <input type="checkbox" id="banner-active" checked style="width:18px;height:18px;accent-color:var(--primary);">활성화 (상점 노출)
                 </label>
                 <div class="preview-label">미리보기</div>
-                <div id="banner-preview" class="banner-preview"></div>
+                <div id="banner-preview" style="height:70px;border-radius:12px;transition:background 0.3s;"></div>
             </div>
             <div class="modal-footer">
                 <button id="modal-cancel-btn" class="btn-ghost">취소</button>
