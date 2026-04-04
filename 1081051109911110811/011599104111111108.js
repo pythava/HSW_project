@@ -305,6 +305,220 @@ function fmtDate(iso) {
 }
 
 /* ─────────────────────────────────────────
+   신고 목록
+───────────────────────────────────────── */
+let currentReportFilter = 'all';
+let allReports = [];
+
+async function loadReports() {
+    const container = document.getElementById('report-list');
+    container.innerHTML = '<div class="empty-state">불러오는 중...</div>';
+
+    // reports + 신고자 프로필 + 게시물 정보 한번에
+    const { data, error } = await window.supabase
+        .from('reports')
+        .select(`
+            id,
+            reporter_id,
+            post_id,
+            reasons,
+            created_at,
+            is_resolved,
+            reporter:profiles!reporter_id (
+                username,
+                email,
+                avatar_url
+            ),
+            post:posts!post_id (
+                title,
+                content,
+                user_id,
+                author:profiles!user_id (
+                    username,
+                    email,
+                    avatar_url
+                )
+            )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error) {
+        // JOIN 실패 시 단순 조회로 폴백
+        loadReportsFallback();
+        return;
+    }
+
+    allReports = data || [];
+    renderReports();
+    setupReportFilters();
+}
+
+// reports 테이블에 FK가 없을 경우 fallback
+async function loadReportsFallback() {
+    const container = document.getElementById('report-list');
+
+    const { data: reports, error } = await window.supabase
+        .from('reports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error || !reports?.length) {
+        container.innerHTML = '<div class="empty-state">신고가 없습니다.</div>';
+        return;
+    }
+
+    // 프로필/게시물 별도 조회
+    const reporterIds = [...new Set(reports.map(r => r.reporter_id).filter(Boolean))];
+    const postIds     = [...new Set(reports.map(r => r.post_id).filter(Boolean))];
+
+    const [{ data: profiles }, { data: posts }] = await Promise.all([
+        window.supabase.from('profiles').select('id, username, email, avatar_url').in('id', reporterIds),
+        window.supabase.from('posts').select('id, title, content, user_id').in('id', postIds),
+    ]);
+
+    const authorIds = [...new Set((posts || []).map(p => p.user_id).filter(Boolean))];
+    const { data: authors } = await window.supabase
+        .from('profiles').select('id, username, email, avatar_url').in('id', authorIds);
+
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+    const postMap    = Object.fromEntries((posts || []).map(p => [p.id, p]));
+    const authorMap  = Object.fromEntries((authors || []).map(p => [p.id, p]));
+
+    allReports = reports.map(r => ({
+        ...r,
+        reporter: profileMap[r.reporter_id] || null,
+        post: postMap[r.post_id]
+            ? { ...postMap[r.post_id], author: authorMap[postMap[r.post_id].user_id] || null }
+            : null,
+    }));
+
+    renderReports();
+    setupReportFilters();
+}
+
+function renderReports() {
+    const container = document.getElementById('report-list');
+    let filtered = allReports;
+
+    if (currentReportFilter === 'pending')  filtered = allReports.filter(r => !r.is_resolved);
+    if (currentReportFilter === 'resolved') filtered = allReports.filter(r => r.is_resolved);
+
+    if (!filtered.length) {
+        container.innerHTML = '<div class="empty-state">해당하는 신고가 없습니다.</div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(r => {
+        const reporter = r.reporter;
+        const post     = r.post;
+        const author   = post?.author;
+        const resolved = !!r.is_resolved;
+        const reasons  = Array.isArray(r.reasons) ? r.reasons : [];
+
+        return `
+        <div class="report-card ${resolved ? 'resolved' : ''}">
+            <div class="report-card-header">
+                <span class="report-card-time">🕐 ${fmtDateFull(r.created_at)}</span>
+                <span class="report-status-badge ${resolved ? 'resolved' : 'pending'}">
+                    ${resolved ? '✅ 처리완료' : '🔴 미처리'}
+                </span>
+            </div>
+
+            <div class="report-card-body">
+                <div class="report-user-block">
+                    <span class="report-user-label">신고자</span>
+                    <div class="report-user-row">
+                        <img class="report-avatar"
+                             src="${reporter?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${r.reporter_id}`}"
+                             onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${r.reporter_id}'">
+                        <div>
+                            <div class="report-username">${escHtml(reporter?.username || '알 수 없음')}</div>
+                            <div class="report-user-email">${escHtml(reporter?.email || '')}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="report-user-block">
+                    <span class="report-user-label">피신고자 (게시물 작성자)</span>
+                    <div class="report-user-row">
+                        <img class="report-avatar"
+                             src="${author?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${post?.user_id}`}"
+                             onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${post?.user_id}'">
+                        <div>
+                            <div class="report-username">${escHtml(author?.username || '알 수 없음')}</div>
+                            <div class="report-user-email">${escHtml(author?.email || '')}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            ${reasons.length ? `
+            <div class="report-reasons">
+                ${reasons.map(reason => `<span class="reason-tag">🚩 ${escHtml(reason)}</span>`).join('')}
+            </div>` : ''}
+
+            <div class="report-card-post">
+                <div class="report-post-label">신고된 게시물</div>
+                <div class="report-post-title">${escHtml(post?.title || '(제목 없음)')}</div>
+                <div class="report-post-body">${escHtml(post?.content || '(내용 없음)')}</div>
+            </div>
+
+            <div class="report-card-actions">
+                ${!resolved ? `
+                <button class="btn-primary" style="font-size:0.82rem;padding:8px 14px;"
+                        onclick="resolveReport('${r.id}')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;">check_circle</span>처리완료
+                </button>` : `
+                <button class="btn-ghost" style="font-size:0.82rem;padding:8px 14px;"
+                        onclick="unresolveReport('${r.id}')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;">undo</span>미처리로
+                </button>`}
+                <span class="report-count-label">신고 ID: ${r.id.slice(0, 8)}…</span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function setupReportFilters() {
+    document.querySelectorAll('.report-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.report-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentReportFilter = btn.dataset.filter;
+            renderReports();
+        });
+    });
+}
+
+async function resolveReport(id) {
+    const { error } = await window.supabase
+        .from('reports')
+        .update({ is_resolved: true })
+        .eq('id', id);
+    if (error) { alert('처리 실패: ' + error.message); return; }
+    allReports = allReports.map(r => r.id === id ? { ...r, is_resolved: true } : r);
+    renderReports();
+}
+
+async function unresolveReport(id) {
+    const { error } = await window.supabase
+        .from('reports')
+        .update({ is_resolved: false })
+        .eq('id', id);
+    if (error) { alert('처리 실패: ' + error.message); return; }
+    allReports = allReports.map(r => r.id === id ? { ...r, is_resolved: false } : r);
+    renderReports();
+}
+
+function fmtDateFull(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ─────────────────────────────────────────
    실행
 ───────────────────────────────────────── */
 initAdmin();
