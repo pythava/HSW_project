@@ -85,11 +85,10 @@ async function searchUsers() {
 
     container.innerHTML = '<div class="empty-state">검색 중...</div>';
 
-    // ✅ ilike 단일 컬럼으로 수정 (or 문법 오류 방지)
     const { data, error } = await window.supabase
         .from('profiles')
-        .select('id, username, avatar_url, created_at')
-        .ilike('username', `%${q}%`)
+        .select('id, username, email, avatar_url, follower_count, post_count, updated_at')
+        .or(`username.ilike.%${q}%,email.ilike.%${q}%`)
         .limit(30);
 
     if (error || !data?.length) {
@@ -104,9 +103,11 @@ async function searchUsers() {
                  onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${u.id}'">
             <div class="user-card-info">
                 <div class="user-card-name">${escHtml(u.username || '(이름 없음)')}</div>
-                <div class="user-card-email">ID: ${u.id.slice(0, 12)}…</div>
+                <div class="user-card-email">${escHtml(u.email || '')}</div>
             </div>
-            <div class="user-card-meta">가입: ${fmtDate(u.created_at)}</div>
+            <div class="user-card-meta">
+                팔로워 ${u.follower_count ?? 0} · 게시물 ${u.post_count ?? 0}
+            </div>
         </div>
     `).join('');
 }
