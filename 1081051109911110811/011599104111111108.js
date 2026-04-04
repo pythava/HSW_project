@@ -303,22 +303,34 @@ async function loadBanList() {
     const container = document.getElementById('ban-list');
     container.innerHTML = '<div class="empty-state">불러오는 중...</div>';
 
-    const { data, error } = await window.supabase
+    const { data: bans, error } = await window.supabase
         .from('bans')
         .select('id, user_id, reason, created_at')
         .order('created_at', { ascending: false });
 
-    if (error || !data?.length) {
+    if (error || !bans?.length) {
         container.innerHTML = '<div class="empty-state">밴된 유저가 없습니다.</div>'; return;
     }
 
-    const uids = data.map(b => b.user_id);
-    const { data: profiles } = await window.supabase
-        .from('profiles').select('id, username, email, avatar_url').in('id', uids);
+    const uids = bans.map(b => b.user_id);
+
+    // 프로필 + 경고 횟수 병렬 조회
+    const [{ data: profiles }, { data: warnings }] = await Promise.all([
+        window.supabase.from('profiles').select('id, username, email, avatar_url').in('id', uids),
+        window.supabase.from('warnings').select('user_id').in('user_id', uids),
+    ]);
+
     const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
 
-    container.innerHTML = data.map(b => {
+    // 유저별 경고 횟수 집계
+    const warningCount = {};
+    (warnings || []).forEach(w => {
+        warningCount[w.user_id] = (warningCount[w.user_id] || 0) + 1;
+    });
+
+    container.innerHTML = bans.map(b => {
         const p = profileMap[b.user_id] || {};
+        const wCount = warningCount[b.user_id] || 0;
         return `
         <div class="ban-card">
             <img class="user-card-avatar"
@@ -327,11 +339,23 @@ async function loadBanList() {
             <div class="ban-card-info">
                 <div class="ban-card-name">${escHtml(p.username || '알 수 없음')}</div>
                 <div class="ban-card-reason">사유: ${escHtml(b.reason || '없음')}</div>
-                <div class="ban-card-date">${fmtDateFull(b.created_at)}</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+                    <span class="ban-card-date">${fmtDateFull(b.created_at)}</span>
+                    <span class="warning-count-badge" title="누적 경고 횟수">
+                        ⚠️ 경고 ${wCount}회
+                    </span>
+                </div>
             </div>
-            <button class="btn-ghost" style="font-size:0.82rem;" onclick="unbanUser('${b.user_id}')">
-                <span class="material-symbols-rounded" style="font-size:1rem;">lock_open</span>밴 해제
-            </button>
+            <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+                <button class="btn-ghost" style="font-size:0.82rem;white-space:nowrap;"
+                        onclick="unbanUser('${b.user_id}')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;">lock_open</span>밴 해제
+                </button>
+                <button class="btn-ghost" style="font-size:0.82rem;white-space:nowrap;color:var(--text-3);"
+                        onclick="openWarningModal('${b.user_id}', '${escHtml(p.username || '')}')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;">warning</span>경고 추가
+                </button>
+            </div>
         </div>`;
     }).join('');
 }
