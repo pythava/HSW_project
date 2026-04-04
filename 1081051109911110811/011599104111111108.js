@@ -3,306 +3,351 @@
 
 const ADMIN_EMAIL = 'pythava1103@gmail.com';
 
-/* ─────────────────────────────────────────
-   초기화 & 권한 체크
-───────────────────────────────────────── */
+/* ─── 초기화 ─── */
 async function initAdmin() {
     const { data: { session } } = await window.supabase.auth.getSession();
-
     if (!session || session.user.email !== ADMIN_EMAIL) {
         document.getElementById('access-denied').style.display = 'flex';
         return;
     }
-
     document.getElementById('admin-app').style.display = 'flex';
     loadDashboard();
     setupNav();
     setupBannerModal();
-    setupSearch();
+    setupLiveSearch();
+    setupContextMenus();
 }
 
-/* ─────────────────────────────────────────
-   사이드바 네비게이션
-───────────────────────────────────────── */
+/* ─── 네비게이션 ─── */
 function setupNav() {
     document.querySelectorAll('.admin-nav-btn[data-section]').forEach(btn => {
         btn.addEventListener('click', () => {
-            const target = btn.dataset.section;
             document.querySelectorAll('.admin-nav-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
             btn.classList.add('active');
+            const target = btn.dataset.section;
             document.getElementById('section-' + target).classList.add('active');
             if (target === 'banners') loadBanners();
             if (target === 'reports') loadReports();
+            if (target === 'banlist') loadBanList();
         });
     });
 }
 
-/* ─────────────────────────────────────────
-   대시보드
-───────────────────────────────────────── */
+/* ─── 대시보드 ─── */
 async function loadDashboard() {
-    // 유저 수
-    const { count: userCount } = await window.supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-    document.getElementById('stat-users').textContent = userCount ?? '—';
-
-    // 게시물 수
-    const { count: postCount } = await window.supabase
-        .from('posts')
-        .select('*', { count: 'exact', head: true });
-    document.getElementById('stat-posts').textContent = postCount ?? '—';
-
-    // 활성 배너 수
-    const { count: bannerCount } = await window.supabase
-        .from('banners')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
-    document.getElementById('stat-banners').textContent = bannerCount ?? '—';
+    const [
+        { count: uc }, { count: pc }, { count: rc }, { count: bc }
+    ] = await Promise.all([
+        window.supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        window.supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_deleted', false),
+        window.supabase.from('reports').select('*', { count: 'exact', head: true }).eq('is_resolved', false),
+        window.supabase.from('bans').select('*', { count: 'exact', head: true }),
+    ]);
+    document.getElementById('stat-users').textContent   = uc ?? '—';
+    document.getElementById('stat-posts').textContent   = pc ?? '—';
+    document.getElementById('stat-reports').textContent = rc ?? '—';
+    document.getElementById('stat-bans').textContent    = bc ?? '—';
 }
 
 /* ─────────────────────────────────────────
-   유저 검색
+   실시간 검색
 ───────────────────────────────────────── */
-function setupSearch() {
-    // 유저 검색
-    document.getElementById('user-search-btn').addEventListener('click', searchUsers);
-    document.getElementById('user-search-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') searchUsers();
-    });
+function setupLiveSearch() {
+    let userTimer, postTimer, pamTimer;
 
-    // 게시물 검색
-    document.getElementById('post-search-btn').addEventListener('click', searchPosts);
-    document.getElementById('post-search-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') searchPosts();
+    document.getElementById('user-search-input').addEventListener('input', e => {
+        clearTimeout(userTimer);
+        userTimer = setTimeout(() => searchUsers(e.target.value.trim()), 250);
+    });
+    document.getElementById('post-search-input').addEventListener('input', e => {
+        clearTimeout(postTimer);
+        postTimer = setTimeout(() => searchPosts(e.target.value.trim()), 250);
+    });
+    document.getElementById('pam-search-input').addEventListener('input', e => {
+        clearTimeout(pamTimer);
+        pamTimer = setTimeout(() => searchPams(e.target.value.trim()), 250);
     });
 }
 
-async function searchUsers() {
-    const q = document.getElementById('user-search-input').value.trim();
+/* 유저 검색 */
+async function searchUsers(q) {
     const container = document.getElementById('user-results');
     if (!q) { container.innerHTML = '<div class="empty-state">검색어를 입력하세요.</div>'; return; }
-
     container.innerHTML = '<div class="empty-state">검색 중...</div>';
 
     const { data, error } = await window.supabase
         .from('profiles')
-        .select('id, username, email, avatar_url, follower_count, post_count, updated_at')
+        .select('id, username, email, avatar_url, follower_count, post_count')
         .or(`username.ilike.%${q}%,email.ilike.%${q}%`)
         .limit(30);
 
     if (error || !data?.length) {
-        container.innerHTML = `<div class="empty-state">결과가 없습니다. ${error ? '(' + error.message + ')' : ''}</div>`;
-        return;
+        container.innerHTML = `<div class="empty-state">결과 없음</div>`; return;
     }
 
+    // 밴 여부 확인
+    const ids = data.map(u => u.id);
+    const { data: bans } = await window.supabase.from('bans').select('user_id').in('user_id', ids);
+    const bannedSet = new Set((bans || []).map(b => b.user_id));
+
     container.innerHTML = data.map(u => `
-        <div class="user-card">
+        <div class="user-card" data-uid="${u.id}" data-uname="${escHtml(u.username || '')}">
+            ${bannedSet.has(u.id) ? '<span class="ban-badge">BAN</span>' : ''}
             <img class="user-card-avatar"
                  src="${u.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${u.id}`}"
                  onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${u.id}'">
             <div class="user-card-info">
-                <div class="user-card-name">${escHtml(u.username || '(이름 없음)')}</div>
+                <div class="user-card-name">${escHtml(u.username || '(이름 없음)')}${bannedSet.has(u.id) ? ' <span style="color:var(--error);font-size:0.75rem;">[BAN]</span>' : ''}</div>
                 <div class="user-card-email">${escHtml(u.email || '')}</div>
             </div>
-            <div class="user-card-meta">
-                팔로워 ${u.follower_count ?? 0} · 게시물 ${u.post_count ?? 0}
-            </div>
+            <div class="user-card-meta">팔로워 ${u.follower_count ?? 0} · 게시물 ${u.post_count ?? 0}</div>
+            <button class="more-btn" onclick="openUserCtx(event, '${u.id}', '${escHtml(u.username || '')}')">
+                <span class="material-symbols-rounded">more_vert</span>
+            </button>
         </div>
     `).join('');
 }
 
-async function searchPosts() {
-    const q = document.getElementById('post-search-input').value.trim();
+/* 게시물 검색 */
+async function searchPosts(q) {
     const container = document.getElementById('post-results');
     if (!q) { container.innerHTML = '<div class="empty-state">검색어를 입력하세요.</div>'; return; }
-
     container.innerHTML = '<div class="empty-state">검색 중...</div>';
 
-    // ✅ title로만 먼저 검색 (posts 테이블 컬럼명 확인 필요)
     const { data, error } = await window.supabase
         .from('posts')
         .select('id, title, content, created_at, user_id')
         .ilike('title', `%${q}%`)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(30);
 
     if (error || !data?.length) {
-        container.innerHTML = `<div class="empty-state">결과가 없습니다. ${error ? '(' + error.message + ')' : ''}</div>`;
-        return;
+        container.innerHTML = '<div class="empty-state">결과 없음</div>'; return;
     }
 
     container.innerHTML = data.map(p => `
-        <div class="post-card">
+        <div class="post-card" data-pid="${p.id}" data-uid="${p.user_id}">
             <div class="post-card-title">${escHtml(p.title || '(제목 없음)')}</div>
             <div class="post-card-body">${escHtml(p.content || '')}</div>
-            <div class="post-card-meta">📅 ${fmtDate(p.created_at)} · ID: ${p.id}</div>
+            <div class="post-card-meta">📅 ${fmtDateFull(p.created_at)}</div>
+            <button class="more-btn" onclick="openPostCtx(event, '${p.id}', '${p.user_id}')">
+                <span class="material-symbols-rounded">more_vert</span>
+            </button>
+        </div>
+    `).join('');
+}
+
+/* 팸 검색 */
+async function searchPams(q) {
+    const container = document.getElementById('pam-results');
+    if (!q) { container.innerHTML = '<div class="empty-state">검색어를 입력하세요.</div>'; return; }
+    container.innerHTML = '<div class="empty-state">검색 중...</div>';
+
+    const { data, error } = await window.supabase
+        .from('pams')
+        .select('id, name, description, region, age_group, gender, member_count, image_url, created_at')
+        .ilike('name', `%${q}%`)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+    if (error || !data?.length) {
+        container.innerHTML = '<div class="empty-state">결과 없음</div>'; return;
+    }
+
+    container.innerHTML = data.map(p => `
+        <div class="pam-card">
+            <img class="pam-card-img"
+                 src="${p.image_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${p.id}`}"
+                 onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${p.id}'">
+            <div class="pam-card-info">
+                <div class="pam-card-name">${escHtml(p.name || '')}</div>
+                <div class="pam-card-desc">${escHtml(p.description || '')}</div>
+                <div class="pam-card-meta" style="margin-top:4px;">
+                    ${[p.region, p.age_group, p.gender].filter(Boolean).map(t => `<span style="background:var(--bg-2);border-radius:6px;padding:2px 8px;font-size:0.72rem;">${escHtml(t)}</span>`).join(' ')}
+                </div>
+            </div>
+            <div class="pam-card-meta">
+                👥 ${p.member_count ?? 0}명<br>
+                <span style="font-size:0.72rem;">${fmtDate(p.created_at)}</span>
+            </div>
         </div>
     `).join('');
 }
 
 /* ─────────────────────────────────────────
-   배너 관리
+   컨텍스트 메뉴
 ───────────────────────────────────────── */
-let editingBannerId = null;
+let ctxTargetUserId   = null;
+let ctxTargetUserName = null;
+let ctxTargetPostId   = null;
+let ctxTargetAuthorId = null;
 
-async function loadBanners() {
-    const container = document.getElementById('banner-list');
+function setupContextMenus() {
+    // 유저 컨텍스트
+    document.getElementById('ctx-warn').addEventListener('click', () => {
+        closeCtxMenus();
+        openWarningModal(ctxTargetUserId, ctxTargetUserName);
+    });
+    document.getElementById('ctx-ban').addEventListener('click', () => {
+        closeCtxMenus();
+        banUser(ctxTargetUserId, ctxTargetUserName);
+    });
+
+    // 신고/게시물 컨텍스트
+    document.getElementById('rctx-warn').addEventListener('click', () => {
+        closeCtxMenus();
+        openWarningModal(ctxTargetAuthorId, '게시물 작성자');
+    });
+    document.getElementById('rctx-delete').addEventListener('click', () => {
+        closeCtxMenus();
+        forceDeletePost(ctxTargetPostId);
+    });
+
+    // 외부 클릭 시 닫기
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.context-menu') && !e.target.closest('.more-btn')) {
+            closeCtxMenus();
+        }
+    });
+}
+
+function openUserCtx(e, uid, uname) {
+    e.stopPropagation();
+    ctxTargetUserId   = uid;
+    ctxTargetUserName = uname;
+    showMenu('context-menu', e);
+}
+
+function openPostCtx(e, pid, uid) {
+    e.stopPropagation();
+    ctxTargetPostId   = pid;
+    ctxTargetAuthorId = uid;
+    showMenu('report-context-menu', e);
+}
+
+function showMenu(menuId, e) {
+    closeCtxMenus();
+    const menu = document.getElementById(menuId);
+    menu.style.display = 'block';
+    const x = Math.min(e.clientX, window.innerWidth  - 180);
+    const y = Math.min(e.clientY, window.innerHeight - 120);
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+}
+
+function closeCtxMenus() {
+    document.getElementById('context-menu').style.display        = 'none';
+    document.getElementById('report-context-menu').style.display = 'none';
+}
+
+/* ─────────────────────────────────────────
+   경고 모달
+───────────────────────────────────────── */
+let warningTargetId = null;
+
+function openWarningModal(uid, uname) {
+    warningTargetId = uid;
+    document.getElementById('warning-target-name').textContent = uname || uid;
+    document.getElementById('warning-message-input').value = '';
+    document.getElementById('warning-modal').style.display = 'flex';
+}
+function closeWarningModal() {
+    document.getElementById('warning-modal').style.display = 'none';
+    warningTargetId = null;
+}
+
+async function sendWarning() {
+    const msg = document.getElementById('warning-message-input').value.trim();
+    if (!msg) { alert('경고 메시지를 입력하세요.'); return; }
+
+    const { error } = await window.supabase.from('warnings').insert({
+        user_id: warningTargetId,
+        message: msg,
+        is_read: false,
+    });
+
+    if (error) { alert('경고 발송 실패: ' + error.message); return; }
+    closeWarningModal();
+    showToast('경고가 발송되었습니다.');
+}
+
+/* ─────────────────────────────────────────
+   밴
+───────────────────────────────────────── */
+async function banUser(uid, uname) {
+    const reason = prompt(`"${uname}" 유저를 밴하는 이유를 입력하세요:`);
+    if (reason === null) return;
+
+    const { error } = await window.supabase.from('bans').insert({
+        user_id:   uid,
+        reason:    reason || '사유 없음',
+        banned_by: (await window.supabase.auth.getUser()).data.user?.id,
+    });
+    if (error) { alert('밴 실패: ' + error.message); return; }
+    showToast(`${uname} 유저가 밴되었습니다.`);
+    loadDashboard();
+}
+
+async function unbanUser(uid) {
+    if (!confirm('밴을 해제하시겠습니까?')) return;
+    const { error } = await window.supabase.from('bans').delete().eq('user_id', uid);
+    if (error) { alert('밴 해제 실패: ' + error.message); return; }
+    showToast('밴이 해제되었습니다.');
+    loadBanList();
+    loadDashboard();
+}
+
+async function loadBanList() {
+    const container = document.getElementById('ban-list');
     container.innerHTML = '<div class="empty-state">불러오는 중...</div>';
 
     const { data, error } = await window.supabase
-        .from('banners')
-        .select('*')
+        .from('bans')
+        .select('id, user_id, reason, created_at')
         .order('created_at', { ascending: false });
 
-    if (error) {
-        container.innerHTML = '<div class="empty-state">배너를 불러오지 못했습니다.</div>';
-        return;
-    }
-    if (!data?.length) {
-        container.innerHTML = '<div class="empty-state">등록된 배너가 없습니다.</div>';
-        return;
+    if (error || !data?.length) {
+        container.innerHTML = '<div class="empty-state">밴된 유저가 없습니다.</div>'; return;
     }
 
-    container.innerHTML = data.map(b => `
-        <div class="banner-item">
-            <div class="banner-preview-card"
-                 style="background: linear-gradient(135deg, ${escHtml(b.color1 || '#9d4edd')}22 0%, ${escHtml(b.color2 || '#c77dff')}11 100%); border-bottom: 1px solid ${escHtml(b.color1 || '#9d4edd')}33;">
-                <div class="banner-preview-top">
-                    <span class="banner-preview-icon">${escHtml(b.icon || '✦')}</span>
-                    <span class="banner-preview-label">${escHtml(b.title || '')}</span>
-                    ${!b.is_active ? '<span class="banner-inactive-badge">비활성</span>' : ''}
-                </div>
-                <p class="banner-preview-desc">${escHtml(b.description || '')}</p>
+    const uids = data.map(b => b.user_id);
+    const { data: profiles } = await window.supabase
+        .from('profiles').select('id, username, email, avatar_url').in('id', uids);
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+
+    container.innerHTML = data.map(b => {
+        const p = profileMap[b.user_id] || {};
+        return `
+        <div class="ban-card">
+            <img class="user-card-avatar"
+                 src="${p.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${b.user_id}`}"
+                 onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${b.user_id}'">
+            <div class="ban-card-info">
+                <div class="ban-card-name">${escHtml(p.username || '알 수 없음')}</div>
+                <div class="ban-card-reason">사유: ${escHtml(b.reason || '없음')}</div>
+                <div class="ban-card-date">${fmtDateFull(b.created_at)}</div>
             </div>
-            <div class="banner-item-actions">
-                <button class="btn-edit" onclick="openEditBanner('${b.id}')">
-                    <span class="material-symbols-rounded" style="font-size:1rem;">edit</span>수정
-                </button>
-                <button class="btn-danger" onclick="deleteBanner('${b.id}')">
-                    <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>삭제
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-/* 배너 모달 */
-function setupBannerModal() {
-    document.getElementById('banner-add-btn').addEventListener('click', () => openBannerModal(null));
-    document.getElementById('modal-close').addEventListener('click', closeBannerModal);
-    document.getElementById('modal-cancel-btn').addEventListener('click', closeBannerModal);
-    document.getElementById('modal-save-btn').addEventListener('click', saveBanner);
-    document.getElementById('banner-modal').addEventListener('click', e => {
-        if (e.target === document.getElementById('banner-modal')) closeBannerModal();
-    });
-
-    // 실시간 미리보기
-    ['banner-title-input', 'banner-desc-input', 'banner-icon-input', 'banner-color1', 'banner-color2'].forEach(id => {
-        document.getElementById(id).addEventListener('input', updatePreview);
-    });
-}
-
-function openBannerModal(banner) {
-    editingBannerId = banner ? banner.id : null;
-    document.getElementById('modal-title').textContent = banner ? '배너 수정' : '배너 추가';
-    document.getElementById('banner-title-input').value = banner?.title || '';
-    document.getElementById('banner-desc-input').value = banner?.description || '';
-    document.getElementById('banner-url-input').value = banner?.url || '';
-    document.getElementById('banner-color1').value = banner?.color1 || '#9d4edd';
-    document.getElementById('banner-color2').value = banner?.color2 || '#c77dff';
-    document.getElementById('banner-icon-input').value = banner?.icon || '✦';
-    document.getElementById('banner-active').checked = banner?.is_active !== false;
-    updatePreview();
-    document.getElementById('banner-modal').style.display = 'flex';
-}
-
-async function openEditBanner(id) {
-    const { data } = await window.supabase.from('banners').select('*').eq('id', id).single();
-    if (data) openBannerModal(data);
-}
-
-function closeBannerModal() {
-    document.getElementById('banner-modal').style.display = 'none';
-    editingBannerId = null;
-}
-
-function updatePreview() {
-    const title  = document.getElementById('banner-title-input').value || 'BANNER TITLE';
-    const desc   = document.getElementById('banner-desc-input').value  || '부제목이 여기에 표시됩니다';
-    const icon   = document.getElementById('banner-icon-input').value  || '✦';
-    const c1     = document.getElementById('banner-color1').value;
-    const c2     = document.getElementById('banner-color2').value;
-
-    const preview = document.getElementById('banner-preview');
-    preview.style.background = `linear-gradient(135deg, ${c1}33 0%, ${c2}18 100%)`;
-    preview.style.borderLeft  = `3px solid ${c1}`;
-    preview.innerHTML = `
-        <div class="bp-top">
-            <span class="bp-icon">${escHtml(icon)}</span>
-            <span class="bp-title">${escHtml(title)}</span>
-        </div>
-        <span class="bp-desc">${escHtml(desc)}</span>
-    `;
-}
-
-async function saveBanner() {
-    const payload = {
-        title:       document.getElementById('banner-title-input').value.trim(),
-        description: document.getElementById('banner-desc-input').value.trim(),
-        url:         document.getElementById('banner-url-input').value.trim() || null,
-        color1:      document.getElementById('banner-color1').value,
-        color2:      document.getElementById('banner-color2').value,
-        icon:        document.getElementById('banner-icon-input').value.trim() || '✦',
-        is_active:   document.getElementById('banner-active').checked,
-    };
-
-    if (!payload.title) {
-        alert('배너 제목을 입력해 주세요.');
-        return;
-    }
-
-    let error;
-    if (editingBannerId) {
-        ({ error } = await window.supabase.from('banners').update(payload).eq('id', editingBannerId));
-    } else {
-        ({ error } = await window.supabase.from('banners').insert(payload));
-    }
-
-    if (error) {
-        alert('저장에 실패했습니다: ' + error.message);
-        return;
-    }
-
-    closeBannerModal();
-    loadBanners();
-    loadDashboard();
-}
-
-async function deleteBanner(id) {
-    if (!confirm('배너를 삭제하시겠습니까?')) return;
-    const { error } = await window.supabase.from('banners').delete().eq('id', id);
-    if (error) { alert('삭제 실패: ' + error.message); return; }
-    loadBanners();
-    loadDashboard();
+            <button class="btn-ghost" style="font-size:0.82rem;" onclick="unbanUser('${b.user_id}')">
+                <span class="material-symbols-rounded" style="font-size:1rem;">lock_open</span>밴 해제
+            </button>
+        </div>`;
+    }).join('');
 }
 
 /* ─────────────────────────────────────────
-   유틸
+   게시물 강제 삭제
 ───────────────────────────────────────── */
-function escHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-function fmtDate(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+async function forceDeletePost(pid) {
+    if (!confirm('게시물을 강제 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+    const { error } = await window.supabase
+        .from('posts').update({ is_deleted: true }).eq('id', pid);
+    if (error) { alert('삭제 실패: ' + error.message); return; }
+    showToast('게시물이 삭제되었습니다.');
+    // 신고 목록에서도 해당 카드 제거
+    allReports = allReports.filter(r => r.post_id !== pid);
+    renderReports();
 }
 
 /* ─────────────────────────────────────────
@@ -315,62 +360,13 @@ async function loadReports() {
     const container = document.getElementById('report-list');
     container.innerHTML = '<div class="empty-state">불러오는 중...</div>';
 
-    // reports + 신고자 프로필 + 게시물 정보 한번에
-    const { data, error } = await window.supabase
-        .from('reports')
-        .select(`
-            id,
-            reporter_id,
-            post_id,
-            reasons,
-            created_at,
-            is_resolved,
-            reporter:profiles!reporter_id (
-                username,
-                email,
-                avatar_url
-            ),
-            post:posts!post_id (
-                title,
-                content,
-                user_id,
-                author:profiles!user_id (
-                    username,
-                    email,
-                    avatar_url
-                )
-            )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-    if (error) {
-        // JOIN 실패 시 단순 조회로 폴백
-        loadReportsFallback();
-        return;
-    }
-
-    allReports = data || [];
-    renderReports();
-    setupReportFilters();
-}
-
-// reports 테이블에 FK가 없을 경우 fallback
-async function loadReportsFallback() {
-    const container = document.getElementById('report-list');
-
     const { data: reports, error } = await window.supabase
-        .from('reports')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .from('reports').select('*').order('created_at', { ascending: false }).limit(100);
 
     if (error || !reports?.length) {
-        container.innerHTML = '<div class="empty-state">신고가 없습니다.</div>';
-        return;
+        container.innerHTML = '<div class="empty-state">신고가 없습니다.</div>'; return;
     }
 
-    // 프로필/게시물 별도 조회
     const reporterIds = [...new Set(reports.map(r => r.reporter_id).filter(Boolean))];
     const postIds     = [...new Set(reports.map(r => r.post_id).filter(Boolean))];
 
@@ -384,14 +380,14 @@ async function loadReportsFallback() {
         .from('profiles').select('id, username, email, avatar_url').in('id', authorIds);
 
     const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
-    const postMap    = Object.fromEntries((posts || []).map(p => [p.id, p]));
-    const authorMap  = Object.fromEntries((authors || []).map(p => [p.id, p]));
+    const postMap    = Object.fromEntries((posts    || []).map(p => [p.id, p]));
+    const authorMap  = Object.fromEntries((authors  || []).map(p => [p.id, p]));
 
     allReports = reports.map(r => ({
         ...r,
         reporter: profileMap[r.reporter_id] || null,
         post: postMap[r.post_id]
-            ? { ...postMap[r.post_id], author: authorMap[postMap[r.post_id].user_id] || null }
+            ? { ...postMap[r.post_id], author: authorMap[postMap[r.post_id]?.user_id] || null }
             : null,
     }));
 
@@ -402,13 +398,11 @@ async function loadReportsFallback() {
 function renderReports() {
     const container = document.getElementById('report-list');
     let filtered = allReports;
-
     if (currentReportFilter === 'pending')  filtered = allReports.filter(r => !r.is_resolved);
-    if (currentReportFilter === 'resolved') filtered = allReports.filter(r => r.is_resolved);
+    if (currentReportFilter === 'resolved') filtered = allReports.filter(r =>  r.is_resolved);
 
     if (!filtered.length) {
-        container.innerHTML = '<div class="empty-state">해당하는 신고가 없습니다.</div>';
-        return;
+        container.innerHTML = '<div class="empty-state">해당하는 신고가 없습니다.</div>'; return;
     }
 
     container.innerHTML = filtered.map(r => {
@@ -422,11 +416,16 @@ function renderReports() {
         <div class="report-card ${resolved ? 'resolved' : ''}">
             <div class="report-card-header">
                 <span class="report-card-time">🕐 ${fmtDateFull(r.created_at)}</span>
-                <span class="report-status-badge ${resolved ? 'resolved' : 'pending'}">
-                    ${resolved ? '✅ 처리완료' : '🔴 미처리'}
-                </span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="report-status-badge ${resolved ? 'resolved' : 'pending'}">
+                        ${resolved ? '✅ 처리완료' : '🔴 미처리'}
+                    </span>
+                    <button class="more-btn" style="position:static;display:flex;"
+                            onclick="openPostCtx(event, '${r.post_id}', '${post?.user_id || ''}')">
+                        <span class="material-symbols-rounded">more_vert</span>
+                    </button>
+                </div>
             </div>
-
             <div class="report-card-body">
                 <div class="report-user-block">
                     <span class="report-user-label">신고자</span>
@@ -440,9 +439,8 @@ function renderReports() {
                         </div>
                     </div>
                 </div>
-
                 <div class="report-user-block">
-                    <span class="report-user-label">피신고자 (게시물 작성자)</span>
+                    <span class="report-user-label">피신고자</span>
                     <div class="report-user-row">
                         <img class="report-avatar"
                              src="${author?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${post?.user_id}`}"
@@ -454,29 +452,20 @@ function renderReports() {
                     </div>
                 </div>
             </div>
-
-            ${reasons.length ? `
-            <div class="report-reasons">
-                ${reasons.map(reason => `<span class="reason-tag">🚩 ${escHtml(reason)}</span>`).join('')}
-            </div>` : ''}
-
+            ${reasons.length ? `<div class="report-reasons">${reasons.map(rr => `<span class="reason-tag">🚩 ${escHtml(rr)}</span>`).join('')}</div>` : ''}
             <div class="report-card-post">
                 <div class="report-post-label">신고된 게시물</div>
-                <div class="report-post-title">${escHtml(post?.title || '(제목 없음)')}</div>
-                <div class="report-post-body">${escHtml(post?.content || '(내용 없음)')}</div>
+                <div class="report-post-title">${escHtml(post?.title || '(삭제되었거나 없음)')}</div>
+                <div class="report-post-body">${escHtml(post?.content || '')}</div>
             </div>
-
             <div class="report-card-actions">
-                ${!resolved ? `
-                <button class="btn-primary" style="font-size:0.82rem;padding:8px 14px;"
-                        onclick="resolveReport('${r.id}')">
-                    <span class="material-symbols-rounded" style="font-size:1rem;">check_circle</span>처리완료
-                </button>` : `
-                <button class="btn-ghost" style="font-size:0.82rem;padding:8px 14px;"
-                        onclick="unresolveReport('${r.id}')">
-                    <span class="material-symbols-rounded" style="font-size:1rem;">undo</span>미처리로
-                </button>`}
-                <span class="report-count-label">신고 ID: ${r.id.slice(0, 8)}…</span>
+                ${!resolved
+                    ? `<button class="btn-primary" style="font-size:0.82rem;padding:8px 14px;" onclick="resolveReport('${r.id}')">
+                           <span class="material-symbols-rounded" style="font-size:1rem;">check_circle</span>처리완료
+                       </button>`
+                    : `<button class="btn-ghost" style="font-size:0.82rem;padding:8px 14px;" onclick="unresolveReport('${r.id}')">
+                           <span class="material-symbols-rounded" style="font-size:1rem;">undo</span>미처리로
+                       </button>`}
             </div>
         </div>`;
     }).join('');
@@ -494,32 +483,160 @@ function setupReportFilters() {
 }
 
 async function resolveReport(id) {
-    const { error } = await window.supabase
-        .from('reports')
-        .update({ is_resolved: true })
-        .eq('id', id);
+    const { error } = await window.supabase.from('reports').update({ is_resolved: true }).eq('id', id);
     if (error) { alert('처리 실패: ' + error.message); return; }
     allReports = allReports.map(r => r.id === id ? { ...r, is_resolved: true } : r);
     renderReports();
 }
-
 async function unresolveReport(id) {
-    const { error } = await window.supabase
-        .from('reports')
-        .update({ is_resolved: false })
-        .eq('id', id);
+    const { error } = await window.supabase.from('reports').update({ is_resolved: false }).eq('id', id);
     if (error) { alert('처리 실패: ' + error.message); return; }
     allReports = allReports.map(r => r.id === id ? { ...r, is_resolved: false } : r);
     renderReports();
 }
 
-function fmtDateFull(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+/* ─────────────────────────────────────────
+   배너 관리 (기존 유지)
+───────────────────────────────────────── */
+let editingBannerId = null;
+
+async function loadBanners() {
+    const container = document.getElementById('banner-list');
+    container.innerHTML = '<div class="empty-state">불러오는 중...</div>';
+    const { data, error } = await window.supabase.from('banners').select('*').order('created_at', { ascending: false });
+    if (error || !data?.length) { container.innerHTML = '<div class="empty-state">등록된 배너가 없습니다.</div>'; return; }
+    container.innerHTML = data.map(b => `
+        <div class="banner-item">
+            <div class="banner-preview-card"
+                 style="background:linear-gradient(135deg,${escHtml(b.color1||'#9d4edd')}22 0%,${escHtml(b.color2||'#c77dff')}11 100%);border-bottom:1px solid ${escHtml(b.color1||'#9d4edd')}33;">
+                <div class="banner-preview-top">
+                    <span class="banner-preview-icon">${escHtml(b.icon||'✦')}</span>
+                    <span class="banner-preview-label">${escHtml(b.title||'')}</span>
+                    ${!b.is_active?'<span class="banner-inactive-badge">비활성</span>':''}
+                </div>
+                <p class="banner-preview-desc">${escHtml(b.description||'')}</p>
+            </div>
+            <div class="banner-item-actions">
+                <button class="btn-edit" onclick="openEditBanner('${b.id}')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;">edit</span>수정
+                </button>
+                <button class="btn-danger" onclick="deleteBanner('${b.id}')">
+                    <span class="material-symbols-rounded" style="font-size:1rem;">delete</span>삭제
+                </button>
+            </div>
+        </div>`).join('');
+}
+
+function setupBannerModal() {
+    document.getElementById('banner-add-btn').addEventListener('click', () => openBannerModal(null));
+    document.getElementById('modal-close').addEventListener('click', closeBannerModal);
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeBannerModal);
+    document.getElementById('modal-save-btn').addEventListener('click', saveBanner);
+    document.getElementById('banner-modal').addEventListener('click', e => {
+        if (e.target === document.getElementById('banner-modal')) closeBannerModal();
+    });
+    ['banner-title-input','banner-desc-input','banner-icon-input','banner-color1','banner-color2'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updatePreview);
+    });
+}
+
+function openBannerModal(banner) {
+    editingBannerId = banner ? banner.id : null;
+    document.getElementById('modal-title').textContent = banner ? '배너 수정' : '배너 추가';
+    document.getElementById('banner-title-input').value = banner?.title || '';
+    document.getElementById('banner-desc-input').value  = banner?.description || '';
+    document.getElementById('banner-url-input').value   = banner?.url || '';
+    document.getElementById('banner-color1').value      = banner?.color1 || '#9d4edd';
+    document.getElementById('banner-color2').value      = banner?.color2 || '#c77dff';
+    document.getElementById('banner-icon-input').value  = banner?.icon || '✦';
+    document.getElementById('banner-active').checked    = banner?.is_active !== false;
+    updatePreview();
+    document.getElementById('banner-modal').style.display = 'flex';
+}
+async function openEditBanner(id) {
+    const { data } = await window.supabase.from('banners').select('*').eq('id', id).single();
+    if (data) openBannerModal(data);
+}
+function closeBannerModal() {
+    document.getElementById('banner-modal').style.display = 'none';
+    editingBannerId = null;
+}
+function updatePreview() {
+    const title = document.getElementById('banner-title-input').value || 'BANNER TITLE';
+    const desc  = document.getElementById('banner-desc-input').value  || '부제목';
+    const icon  = document.getElementById('banner-icon-input').value  || '✦';
+    const c1    = document.getElementById('banner-color1').value;
+    const c2    = document.getElementById('banner-color2').value;
+    const preview = document.getElementById('banner-preview');
+    preview.style.background = `linear-gradient(135deg,${c1}33 0%,${c2}18 100%)`;
+    preview.style.borderLeft  = `3px solid ${c1}`;
+    preview.innerHTML = `
+        <div class="bp-top"><span class="bp-icon">${escHtml(icon)}</span><span class="bp-title">${escHtml(title)}</span></div>
+        <span class="bp-desc">${escHtml(desc)}</span>`;
+}
+async function saveBanner() {
+    const payload = {
+        title: document.getElementById('banner-title-input').value.trim(),
+        description: document.getElementById('banner-desc-input').value.trim(),
+        url: document.getElementById('banner-url-input').value.trim() || null,
+        color1: document.getElementById('banner-color1').value,
+        color2: document.getElementById('banner-color2').value,
+        icon: document.getElementById('banner-icon-input').value.trim() || '✦',
+        is_active: document.getElementById('banner-active').checked,
+    };
+    if (!payload.title) { alert('배너 제목을 입력해 주세요.'); return; }
+    let error;
+    if (editingBannerId) {
+        ({ error } = await window.supabase.from('banners').update(payload).eq('id', editingBannerId));
+    } else {
+        ({ error } = await window.supabase.from('banners').insert(payload));
+    }
+    if (error) { alert('저장 실패: ' + error.message); return; }
+    closeBannerModal();
+    loadBanners();
+    loadDashboard();
+}
+async function deleteBanner(id) {
+    if (!confirm('배너를 삭제하시겠습니까?')) return;
+    const { error } = await window.supabase.from('banners').delete().eq('id', id);
+    if (error) { alert('삭제 실패: ' + error.message); return; }
+    loadBanners();
+    loadDashboard();
 }
 
 /* ─────────────────────────────────────────
-   실행
+   토스트
 ───────────────────────────────────────── */
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    Object.assign(t.style, {
+        position:'fixed', bottom:'30px', left:'50%', transform:'translateX(-50%)',
+        background:'var(--bg-1)', border:'1px solid var(--primary)',
+        color:'var(--text-0)', padding:'12px 24px', borderRadius:'12px',
+        fontSize:'0.88rem', fontWeight:'700', zIndex:'99999',
+        boxShadow:'0 8px 24px rgba(0,0,0,0.4)', animation:'ugSlideUp 0.2s ease',
+    });
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+}
+
+/* ─────────────────────────────────────────
+   유틸
+───────────────────────────────────────── */
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtDateFull(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return `${fmtDate(iso)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ─── 실행 ─── */
 initAdmin();
