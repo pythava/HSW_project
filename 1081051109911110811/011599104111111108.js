@@ -107,6 +107,13 @@ async function searchUsers(q) {
             </button>
         </div>
     `).join('');
+    // 경고 횟수 확인
+    const { data: warnData } = await window.supabase
+        .from('warnings').select('user_id').in('user_id', ids);
+    const warnCount = {};
+    (warnData || []).forEach(w => {
+        warnCount[w.user_id] = (warnCount[w.user_id] || 0) + 1;
+    });
 }
 
 /* 게시물 검색 */
