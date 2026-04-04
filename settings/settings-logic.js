@@ -112,6 +112,34 @@ function bindEvents(user, profile) {
         });
     });
 
+    // 비밀번호 직접 변경 모달 열기
+    document.getElementById('open-password-modal').addEventListener('click', () => {
+        document.getElementById('new-password-input').value = '';
+        document.getElementById('confirm-password-input').value = '';
+        document.getElementById('password-match-hint').textContent = '';
+        openModal('password-modal');
+    });
+
+    // 비밀번호 일치 여부 실시간 표시
+    ['new-password-input', 'confirm-password-input'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+            const pw = document.getElementById('new-password-input').value;
+            const confirm = document.getElementById('confirm-password-input').value;
+            const hint = document.getElementById('password-match-hint');
+            if (!confirm) { hint.textContent = ''; return; }
+            if (pw === confirm) {
+                hint.textContent = '✓ 비밀번호가 일치해요.';
+                hint.style.color = '#4caf50';
+            } else {
+                hint.textContent = '✗ 비밀번호가 일치하지 않아요.';
+                hint.style.color = 'var(--error)';
+            }
+        });
+    });
+
+    // 비밀번호 직접 변경 저장
+    document.getElementById('save-password-btn').addEventListener('click', savePassword);
+
     // 비밀번호 재설정
     document.getElementById('reset-password-btn').addEventListener('click', async () => {
         const ok = await ugConfirm(`${user.email}으로\n비밀번호 재설정 링크를 발송할까요?`, {
@@ -159,6 +187,27 @@ function bindEvents(user, profile) {
         await ugAlert('계정이 삭제됐어요. 그동안 이용해 주셔서 감사합니다.', { icon: 'info', title: '탈퇴 완료' });
         location.href = '../login.html';
     });
+}
+
+async function savePassword() {
+    const pw = document.getElementById('new-password-input').value;
+    const confirm = document.getElementById('confirm-password-input').value;
+
+    if (!pw) { await ugAlert('새 비밀번호를 입력해주세요.', { icon: 'warning', title: '입력 필요' }); return; }
+    if (pw.length < 6) { await ugAlert('비밀번호는 6자 이상이어야 해요.', { icon: 'warning' }); return; }
+    if (pw !== confirm) { await ugAlert('비밀번호가 일치하지 않아요.', { icon: 'warning' }); return; }
+
+    const btn = document.getElementById('save-password-btn');
+    btn.disabled = true; btn.textContent = '변경 중...';
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    btn.disabled = false; btn.textContent = '변경';
+
+    if (error) {
+        await ugAlert('변경 실패: ' + error.message, { icon: 'error', title: '오류' });
+        return;
+    }
+    closeModal('password-modal');
+    showToast('비밀번호가 변경됐어요!');
 }
 
 async function saveUsername() {
