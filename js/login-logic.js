@@ -8,6 +8,11 @@ const authError = document.getElementById('auth-error');
 
 let isSignupMode = false;
 
+// 초기 로드: 로그인 모드이므로 비밀번호 찾기 표시
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('forgot-password-wrap').style.display = 'block';
+});
+
 // 1. 로그인/회원가입 모드 전환 로직
 toggleBtn.addEventListener('click', () => {
     isSignupMode = !isSignupMode;
@@ -22,6 +27,42 @@ toggleBtn.addEventListener('click', () => {
     
     signupExtra.style.display = isSignupMode ? 'block' : 'none';
     authError.style.display = 'none';
+    document.getElementById('auth-success').style.display = 'none';
+    // 로그인 모드일 때만 비밀번호 찾기 표시
+    document.getElementById('forgot-password-wrap').style.display = isSignupMode ? 'none' : 'block';
+});
+
+// 비밀번호 찾기 — 이메일 발송
+document.getElementById('forgot-password-btn').addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const authSuccess = document.getElementById('auth-success');
+    authError.style.display = 'none';
+    authSuccess.style.display = 'none';
+
+    if (!email) {
+        authError.innerText = '위에 이메일을 먼저 입력해주세요.';
+        authError.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('forgot-password-btn');
+    btn.disabled = true;
+    btn.textContent = '발송 중...';
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/reset-password.html'
+    });
+
+    btn.disabled = false;
+    btn.textContent = '비밀번호를 잊으셨나요?';
+
+    if (error) {
+        authError.innerText = '발송 실패: ' + error.message;
+        authError.style.display = 'block';
+    } else {
+        authSuccess.innerText = `${email}로 재설정 링크를 보냈어요. 메일함을 확인해주세요.`;
+        authSuccess.style.display = 'block';
+    }
 });
 
 // 2. 폼 제출 핸들러
@@ -69,7 +110,7 @@ authForm.addEventListener('submit', async (e) => {
                     console.warn("프로필 동기화 지연 (무시됨):", pErr.message);
                 }
 
-                alert('가든 입장권이 발급되었습니다! Email을 확인해주세요!!');
+                alert('가든 거주권이 발급되었습니다!');
                 window.location.href = './index.html';
             }
         } else {
