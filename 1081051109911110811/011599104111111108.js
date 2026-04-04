@@ -530,25 +530,30 @@ async function unresolveReport(id) {
 }
 
 /* ─────────────────────────────────────────
-   배너 관리 (기존 유지)
+   프로필 배너 관리 (상점 연동)
 ───────────────────────────────────────── */
 let editingBannerId = null;
 
 async function loadBanners() {
     const container = document.getElementById('banner-list');
     container.innerHTML = '<div class="empty-state">불러오는 중...</div>';
-    const { data, error } = await window.supabase.from('banners').select('*').order('created_at', { ascending: false });
-    if (error || !data?.length) { container.innerHTML = '<div class="empty-state">등록된 배너가 없습니다.</div>'; return; }
+    const { data, error } = await window.supabase
+        .from('profile_banners')
+        .select('*')
+        .order('created_at', { ascending: false });
+    if (error || !data?.length) {
+        container.innerHTML = '<div class="empty-state">등록된 배너가 없습니다.</div>';
+        return;
+    }
     container.innerHTML = data.map(b => `
         <div class="banner-item">
             <div class="banner-preview-card"
-                 style="background:linear-gradient(135deg,${escHtml(b.color1||'#9d4edd')}22 0%,${escHtml(b.color2||'#c77dff')}11 100%);border-bottom:1px solid ${escHtml(b.color1||'#9d4edd')}33;">
-                <div class="banner-preview-top">
-                    <span class="banner-preview-icon">${escHtml(b.icon||'✦')}</span>
-                    <span class="banner-preview-label">${escHtml(b.title||'')}</span>
-                    ${!b.is_active?'<span class="banner-inactive-badge">비활성</span>':''}
-                </div>
-                <p class="banner-preview-desc">${escHtml(b.description||'')}</p>
+                 style="background:linear-gradient(135deg,${escHtml(b.color1)} 0%,${escHtml(b.color2)} 100%);height:70px;border-radius:10px 10px 0 0;position:relative;">
+                ${!b.is_active ? '<span class="banner-inactive-badge" style="position:absolute;top:8px;right:8px;">비활성</span>' : ''}
+            </div>
+            <div style="padding:10px 12px;background:var(--bg-2);border-radius:0 0 10px 10px;">
+                <div style="font-weight:700;font-size:0.9rem;">${escHtml(b.name)}</div>
+                <div style="font-size:0.78rem;color:var(--text-3);margin-top:2px;">🌙 ${b.price} Luna · ID: ${escHtml(b.id)}</div>
             </div>
             <div class="banner-item-actions">
                 <button class="btn-edit" onclick="openEditBanner('${b.id}')">
@@ -569,7 +574,7 @@ function setupBannerModal() {
     document.getElementById('banner-modal').addEventListener('click', e => {
         if (e.target === document.getElementById('banner-modal')) closeBannerModal();
     });
-    ['banner-title-input','banner-desc-input','banner-icon-input','banner-color1','banner-color2'].forEach(id => {
+    ['banner-color1', 'banner-color2'].forEach(id => {
         document.getElementById(id).addEventListener('input', updatePreview);
     });
 }
@@ -577,65 +582,70 @@ function setupBannerModal() {
 function openBannerModal(banner) {
     editingBannerId = banner ? banner.id : null;
     document.getElementById('modal-title').textContent = banner ? '배너 수정' : '배너 추가';
-    document.getElementById('banner-title-input').value = banner?.title || '';
-    document.getElementById('banner-desc-input').value  = banner?.description || '';
-    document.getElementById('banner-url-input').value   = banner?.url || '';
+
+    const idInput = document.getElementById('banner-id-input');
+    idInput.value    = banner?.id    || '';
+    idInput.disabled = !!banner; // 수정 시 ID 변경 불가
+
+    document.getElementById('banner-title-input').value = banner?.name  || '';
+    document.getElementById('banner-price-input').value = banner?.price ?? 100;
     document.getElementById('banner-color1').value      = banner?.color1 || '#9d4edd';
     document.getElementById('banner-color2').value      = banner?.color2 || '#c77dff';
-    document.getElementById('banner-icon-input').value  = banner?.icon || '✦';
     document.getElementById('banner-active').checked    = banner?.is_active !== false;
     updatePreview();
     document.getElementById('banner-modal').style.display = 'flex';
 }
+
 async function openEditBanner(id) {
-    const { data } = await window.supabase.from('banners').select('*').eq('id', id).single();
+    const { data } = await window.supabase.from('profile_banners').select('*').eq('id', id).single();
     if (data) openBannerModal(data);
 }
+
 function closeBannerModal() {
     document.getElementById('banner-modal').style.display = 'none';
     editingBannerId = null;
 }
+
 function updatePreview() {
-    const title = document.getElementById('banner-title-input').value || 'BANNER TITLE';
-    const desc  = document.getElementById('banner-desc-input').value  || '부제목';
-    const icon  = document.getElementById('banner-icon-input').value  || '✦';
-    const c1    = document.getElementById('banner-color1').value;
-    const c2    = document.getElementById('banner-color2').value;
-    const preview = document.getElementById('banner-preview');
-    preview.style.background = `linear-gradient(135deg,${c1}33 0%,${c2}18 100%)`;
-    preview.style.borderLeft  = `3px solid ${c1}`;
-    preview.innerHTML = `
-        <div class="bp-top"><span class="bp-icon">${escHtml(icon)}</span><span class="bp-title">${escHtml(title)}</span></div>
-        <span class="bp-desc">${escHtml(desc)}</span>`;
+    const c1 = document.getElementById('banner-color1').value;
+    const c2 = document.getElementById('banner-color2').value;
+    document.getElementById('banner-preview').style.background =
+        `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
 }
+
 async function saveBanner() {
-    const payload = {
-        title: document.getElementById('banner-title-input').value.trim(),
-        description: document.getElementById('banner-desc-input').value.trim(),
-        url: document.getElementById('banner-url-input').value.trim() || null,
-        color1: document.getElementById('banner-color1').value,
-        color2: document.getElementById('banner-color2').value,
-        icon: document.getElementById('banner-icon-input').value.trim() || '✦',
-        is_active: document.getElementById('banner-active').checked,
-    };
-    if (!payload.title) { alert('배너 제목을 입력해 주세요.'); return; }
-    let error;
-    if (editingBannerId) {
-        ({ error } = await window.supabase.from('banners').update(payload).eq('id', editingBannerId));
-    } else {
-        ({ error } = await window.supabase.from('banners').insert(payload));
+    const id    = document.getElementById('banner-id-input').value.trim();
+    const name  = document.getElementById('banner-title-input').value.trim();
+    const price = parseInt(document.getElementById('banner-price-input').value) || 0;
+    const color1 = document.getElementById('banner-color1').value;
+    const color2 = document.getElementById('banner-color2').value;
+    const is_active = document.getElementById('banner-active').checked;
+
+    if (!name) { alert('배너 이름을 입력해 주세요.'); return; }
+    if (!editingBannerId && !id) { alert('배너 ID를 입력해 주세요.'); return; }
+    if (!editingBannerId && !/^[a-z0-9_]+$/.test(id)) {
+        alert('배너 ID는 영문 소문자, 숫자, 언더스코어만 사용할 수 있어요.'); return;
     }
+
+    const payload = { name, price, color1, color2, is_active };
+    let error;
+
+    if (editingBannerId) {
+        ({ error } = await window.supabase.from('profile_banners').update(payload).eq('id', editingBannerId));
+    } else {
+        ({ error } = await window.supabase.from('profile_banners').insert({ id, ...payload }));
+    }
+
     if (error) { alert('저장 실패: ' + error.message); return; }
     closeBannerModal();
     loadBanners();
-    loadDashboard();
 }
+
 async function deleteBanner(id) {
-    if (!confirm('배너를 삭제하시겠습니까?')) return;
-    const { error } = await window.supabase.from('banners').delete().eq('id', id);
+    if (!confirm(`"${id}" 배너를 삭제하시겠어요?\n이미 보유한 유저의 배너는 유지됩니다.`)) return;
+    const { error } = await window.supabase.from('profile_banners').delete().eq('id', id);
     if (error) { alert('삭제 실패: ' + error.message); return; }
     loadBanners();
-    loadDashboard();
 }
 
 /* ─────────────────────────────────────────
@@ -675,21 +685,23 @@ function fmtDateFull(iso) {
 /* ─────────────────────────────────────────
    프로필 배너 지급 / 회수
 ───────────────────────────────────────── */
-const PROFILE_BANNERS = [
-    { id: 'banner_violet',   name: '보라빛 심연',  preview: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' },
-    { id: 'banner_rose',     name: '장미빛 새벽',  preview: 'linear-gradient(135deg, #e11d48 0%, #9f1239 100%)' },
-    { id: 'banner_ocean',    name: '심해의 파랑',  preview: 'linear-gradient(135deg, #0284c7 0%, #075985 100%)' },
-    { id: 'banner_forest',   name: '어두운 숲',    preview: 'linear-gradient(135deg, #16a34a 0%, #14532d 100%)' },
-    { id: 'banner_ember',    name: '잿빛 불꽃',    preview: 'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)' },
-    { id: 'banner_midnight', name: '미드나잇',     preview: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' },
-];
-
 let _bannerGrantUserId = null;
 let _bannerGrantOwned  = new Set();
+let _allProfileBanners = []; // DB에서 로드
 
 async function openBannerGrantModal(uid, uname) {
     _bannerGrantUserId = uid;
     document.getElementById('banner-grant-target-name').textContent = uname || uid;
+
+    // 전체 배너 목록 DB에서 로드
+    const { data: allBanners } = await window.supabase
+        .from('profile_banners')
+        .select('id, name, color1, color2')
+        .order('created_at', { ascending: true });
+    _allProfileBanners = (allBanners || []).map(b => ({
+        id: b.id, name: b.name,
+        preview: `linear-gradient(135deg, ${b.color1} 0%, ${b.color2} 100%)`
+    }));
 
     // 현재 보유 배너 조회
     const { data: owned } = await window.supabase
@@ -704,7 +716,7 @@ async function openBannerGrantModal(uid, uname) {
 
 function renderBannerGrantGrid() {
     const grid = document.getElementById('banner-grant-grid');
-    grid.innerHTML = PROFILE_BANNERS.map(b => {
+    grid.innerHTML = _allProfileBanners.map(b => {
         const has = _bannerGrantOwned.has(b.id);
         return `
         <div style="border-radius:12px;overflow:hidden;border:2px solid ${has ? 'var(--primary)' : 'var(--border)'};cursor:pointer;transition:all 0.2s;"
