@@ -90,3 +90,27 @@
     padding: 10px;
     border-radius: 8px;
 }
+
+.forgot-password-wrap {
+    margin-top: 14px;
+    text-align: center;
+}
+
+.forgot-password-btn {
+    font-size: 0.82rem;
+    color: var(--text-3);
+    transition: color 0.2s;
+}
+
+.forgot-password-btn:hover {
+    color: var(--primary);
+}
+
+.success-msg {
+    margin-top: 15px;
+    color: #4caf50;
+    font-size: 0.85rem;
+    background: rgba(76, 175, 80, 0.1);
+    padding: 10px;
+    border-radius: 8px;
+}
