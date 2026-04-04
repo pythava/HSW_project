@@ -164,19 +164,6 @@ function bindEvents(user, profile) {
     // 비밀번호 직접 변경 저장
     document.getElementById('save-password-btn').addEventListener('click', savePassword);
 
-    // 비밀번호 재설정
-    document.getElementById('reset-password-btn').addEventListener('click', async () => {
-        const ok = await ugConfirm(`${user.email}으로\n비밀번호 재설정 링크를 발송할까요?`, {
-            title: '비밀번호 변경', icon: 'help', confirmText: '발송'
-        });
-        if (!ok) return;
-        const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-            redirectTo: window.location.origin + '/settings/index.html'
-        });
-        if (error) await ugAlert('발송 실패: ' + error.message, { icon: 'error', title: '오류' });
-        else await ugAlert('재설정 링크가 이메일로 발송됐어요!', { icon: 'success', title: '발송 완료' });
-    });
-
     // 로그아웃
     document.getElementById('settings-logout-btn').addEventListener('click', async () => {
         const ok = await ugConfirm('로그아웃 할까요?', { title: '로그아웃', icon: 'help', confirmText: '로그아웃' });
