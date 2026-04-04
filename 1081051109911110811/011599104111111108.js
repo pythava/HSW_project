@@ -33,6 +33,7 @@ function setupNav() {
             btn.classList.add('active');
             document.getElementById('section-' + target).classList.add('active');
             if (target === 'banners') loadBanners();
+            if (target === 'reports') loadReports();
         });
     });
 }
