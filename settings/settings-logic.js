@@ -3,6 +3,30 @@
 let _me = null;
 let _myProfile = null;
 
+// 이메일 재설정 링크로 들어온 경우 감지 → 비밀번호 변경 모달 자동 오픈
+(async () => {
+    const hash = new URLSearchParams(window.location.hash.replace('#', '?'));
+    if (hash.get('type') === 'recovery' && hash.get('access_token')) {
+        // 토큰으로 세션 확립
+        await supabase.auth.setSession({
+            access_token: hash.get('access_token'),
+            refresh_token: hash.get('refresh_token') || ''
+        });
+        // URL 정리 (토큰 노출 방지)
+        history.replaceState(null, '', window.location.pathname);
+        // DOMContentLoaded 이후 모달 오픈
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('new-password-input').value = '';
+            document.getElementById('confirm-password-input').value = '';
+            document.getElementById('password-match-hint').textContent = '';
+            // 안내 메시지
+            document.getElementById('password-match-hint').textContent = '이메일 인증 완료! 새 비밀번호를 입력해주세요.';
+            document.getElementById('password-match-hint').style.color = '#4caf50';
+            openModal('password-modal');
+        }, { once: true });
+    }
+})();
+
 document.addEventListener('DOMContentLoaded', async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { location.href = '../login.html'; return; }
