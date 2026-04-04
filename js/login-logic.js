@@ -28,7 +28,6 @@ toggleBtn.addEventListener('click', () => {
 authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // UI 초기화 및 버튼 비활성화 (중복 클릭 방지)
     authError.style.display = 'none';
     authSubmitBtn.disabled = true;
     authSubmitBtn.innerText = isSignupMode ? '가든 연결 중...' : '접속 중...';
@@ -39,30 +38,37 @@ authForm.addEventListener('submit', async (e) => {
 
     try {
         if (isSignupMode) {
-            // [회원가입] 
+            // [회원가입]
             const { data: authData, error: authErrorMsg } = await supabase.auth.signUp({
                 email,
                 password,
+                options: {
+                    data: { username: username } // user_metadata에 username 저장
+                }
             });
 
             if (authErrorMsg) throw authErrorMsg;
 
-            // [프로필 생성] - 에러가 나더라도 리다이렉트를 막지 않음
             if (authData.user) {
-                try {
-                    await supabase
-                        .from('profiles')
-                        .upsert([{ 
-                            id: authData.user.id, 
-                            email: email,
-                            username: username,
-                            description: "UnderGarden에 새로 합류한 거주민입니다."
-                        }]);
-                } catch (pErr) {
-                    console.warn("프로필 데이터베이스 동기화 지연:", pErr.message);
+                // 세션이 확립될 때까지 최대 3초 대기 후 프로필 upsert 시도
+                let retries = 6;
+                while (retries-- > 0) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) break;
+                    await new Promise(r => setTimeout(r, 500));
                 }
-                
-                // 성공 메시지 후 즉시 이동
+
+                try {
+                    await supabase.from('profiles').upsert([{
+                        id: authData.user.id,
+                        email: email,
+                        username: username,
+                        description: "UnderGarden에 새로 합류한 거주민입니다."
+                    }]);
+                } catch (pErr) {
+                    console.warn("프로필 동기화 지연 (무시됨):", pErr.message);
+                }
+
                 alert('가든 거주권이 발급되었습니다!');
                 window.location.href = './index.html';
             }
@@ -74,12 +80,10 @@ authForm.addEventListener('submit', async (e) => {
             });
 
             if (loginError) throw loginError;
-            
-            // 로그인 성공 시 지체 없이 이동
+
             window.location.href = './index.html';
         }
     } catch (err) {
-        // 실제 계정 생성/로그인 자체가 실패한 경우에만 에러 표시
         console.error("Auth System Error:", err.message);
         authError.innerText = "가든 접속 실패: " + translateError(err.message);
         authError.style.display = 'block';
@@ -89,12 +93,10 @@ authForm.addEventListener('submit', async (e) => {
     }
 });
 
-/**
- * 일반적인 에러 메시지를 한국어로 변환
- */
 function translateError(msg) {
     if (msg.includes("Invalid login credentials")) return "이메일 또는 비밀번호가 틀렸습니다.";
     if (msg.includes("User already registered")) return "이미 등록된 이메일입니다.";
     if (msg.includes("Password should be at least 6 characters")) return "비밀번호는 최소 6자 이상이어야 합니다.";
+    if (msg.includes("Database error saving new user")) return "서버 오류입니다. Supabase 트리거 설정을 확인해주세요.";
     return msg;
 }
