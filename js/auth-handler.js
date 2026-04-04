@@ -38,3 +38,47 @@ document.getElementById('logout-btn')?.addEventListener('click', async () => {
 });
 
 checkUserStatus();
+
+// 경고 알림 체크
+async function checkWarnings() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data: warnings } = await supabase
+        .from('warnings')
+        .select('id, message')
+        .eq('user_id', session.user.id)
+        .eq('is_read', false)
+        .order('created_at', { ascending: true });
+
+    if (!warnings?.length) return;
+
+    // 순서대로 하나씩 표시
+    for (const w of warnings) {
+        await showAdminWarning(w.message);
+        await supabase.from('warnings').update({ is_read: true }).eq('id', w.id);
+    }
+}
+
+function showAdminWarning(message) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'ug-alert-overlay';
+        overlay.innerHTML = `
+            <div class="ug-alert-box" style="border:1px solid rgba(255,180,0,0.4);">
+                <span class="ug-alert-icon">⚠️</span>
+                <div class="ug-alert-title" style="color:#ffb400;">관리자 경고</div>
+                <div class="ug-alert-msg" style="white-space:pre-wrap;">${message.replace(/</g,'&lt;')}</div>
+                <div class="ug-alert-btns">
+                    <button class="ug-btn-ok" style="background:#ffb400;">확인</button>
+                </div>
+            </div>`;
+        overlay.querySelector('.ug-btn-ok').onclick = () => {
+            overlay.remove();
+            resolve();
+        };
+        document.body.appendChild(overlay);
+    });
+}
+
+checkWarnings();
