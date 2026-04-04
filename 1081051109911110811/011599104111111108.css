@@ -925,3 +925,14 @@
 .pam-card-desc { font-size: 0.78rem; color: var(--text-2); margin-top: 3px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pam-card-meta { font-size: 0.75rem; color: var(--text-3); text-align: right; flex-shrink: 0; }
+
+/* 경고 횟수 배지 */
+.warning-count-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(255, 180, 0, 0.1);
+    color: #ffb400;
+    border: 1px solid rgba(255, 180, 0, 0.25);
+}
