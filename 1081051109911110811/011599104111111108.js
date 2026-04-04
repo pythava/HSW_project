@@ -196,6 +196,10 @@ function setupContextMenus() {
         closeCtxMenus();
         openWarningModal(ctxTargetUserId, ctxTargetUserName);
     });
+    document.getElementById('ctx-banner').addEventListener('click', () => {
+        closeCtxMenus();
+        openBannerGrantModal(ctxTargetUserId, ctxTargetUserName);
+    });
     document.getElementById('ctx-ban').addEventListener('click', () => {
         closeCtxMenus();
         banUser(ctxTargetUserId, ctxTargetUserName);
@@ -666,6 +670,80 @@ function fmtDateFull(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
     return `${fmtDate(iso)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ─────────────────────────────────────────
+   프로필 배너 지급 / 회수
+───────────────────────────────────────── */
+const PROFILE_BANNERS = [
+    { id: 'banner_violet',   name: '보라빛 심연',  preview: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' },
+    { id: 'banner_rose',     name: '장미빛 새벽',  preview: 'linear-gradient(135deg, #e11d48 0%, #9f1239 100%)' },
+    { id: 'banner_ocean',    name: '심해의 파랑',  preview: 'linear-gradient(135deg, #0284c7 0%, #075985 100%)' },
+    { id: 'banner_forest',   name: '어두운 숲',    preview: 'linear-gradient(135deg, #16a34a 0%, #14532d 100%)' },
+    { id: 'banner_ember',    name: '잿빛 불꽃',    preview: 'linear-gradient(135deg, #ea580c 0%, #9a3412 100%)' },
+    { id: 'banner_midnight', name: '미드나잇',     preview: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' },
+];
+
+let _bannerGrantUserId = null;
+let _bannerGrantOwned  = new Set();
+
+async function openBannerGrantModal(uid, uname) {
+    _bannerGrantUserId = uid;
+    document.getElementById('banner-grant-target-name').textContent = uname || uid;
+
+    // 현재 보유 배너 조회
+    const { data: owned } = await window.supabase
+        .from('user_banners')
+        .select('banner_id')
+        .eq('user_id', uid);
+    _bannerGrantOwned = new Set((owned || []).map(r => r.banner_id));
+
+    renderBannerGrantGrid();
+    document.getElementById('banner-grant-modal').style.display = 'flex';
+}
+
+function renderBannerGrantGrid() {
+    const grid = document.getElementById('banner-grant-grid');
+    grid.innerHTML = PROFILE_BANNERS.map(b => {
+        const has = _bannerGrantOwned.has(b.id);
+        return `
+        <div style="border-radius:12px;overflow:hidden;border:2px solid ${has ? 'var(--primary)' : 'var(--border)'};cursor:pointer;transition:all 0.2s;"
+             onclick="toggleBannerGrant('${b.id}')">
+            <div style="height:60px;background:${b.preview};"></div>
+            <div style="padding:8px 10px;background:var(--bg-2);display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:0.82rem;font-weight:600;color:var(--text-1);">${b.name}</span>
+                <span style="font-size:0.75rem;font-weight:700;color:${has ? 'var(--primary)' : 'var(--text-3)'};">
+                    ${has ? '보유 ✓' : '미보유'}
+                </span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function toggleBannerGrant(bannerId) {
+    const has = _bannerGrantOwned.has(bannerId);
+    if (has) {
+        // 회수
+        await window.supabase
+            .from('user_banners')
+            .delete()
+            .eq('user_id', _bannerGrantUserId)
+            .eq('banner_id', bannerId);
+        _bannerGrantOwned.delete(bannerId);
+    } else {
+        // 지급
+        await window.supabase
+            .from('user_banners')
+            .upsert([{ user_id: _bannerGrantUserId, banner_id: bannerId }]);
+        _bannerGrantOwned.add(bannerId);
+    }
+    renderBannerGrantGrid();
+}
+
+function closeBannerGrantModal() {
+    document.getElementById('banner-grant-modal').style.display = 'none';
+    _bannerGrantUserId = null;
+    _bannerGrantOwned  = new Set();
 }
 
 /* ─── 실행 ─── */
