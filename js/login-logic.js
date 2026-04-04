@@ -69,7 +69,7 @@ authForm.addEventListener('submit', async (e) => {
                     console.warn("프로필 동기화 지연 (무시됨):", pErr.message);
                 }
 
-                alert('가든 거주권이 발급되었습니다!');
+                alert('가든 입장권이 발급되었습니다! Email을 확인해주세요!!');
                 window.location.href = './index.html';
             }
         } else {
