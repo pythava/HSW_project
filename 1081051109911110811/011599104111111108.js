@@ -101,11 +101,10 @@ async function searchUsers(q) {
                 <div class="user-card-name">${escHtml(u.username || '(이름 없음)')}${bannedSet.has(u.id) ? ' <span style="color:var(--error);font-size:0.75rem;">[BAN]</span>' : ''}</div>
                 <div class="user-card-email">${escHtml(u.email || '')}</div>
             </div>
-            <div class="user-card-meta">팔로워 ${u.follower_count ?? 0} · 게시물 ${u.post_count ?? 0}</div>
-            <button class="more-btn" onclick="openUserCtx(event, '${u.id}', '${escHtml(u.username || '')}')">
-                <span class="material-symbols-rounded">more_vert</span>
-            </button>
-        </div>
+            <div class="user-card-meta">
+                팔로워 ${u.follower_count ?? 0} · 게시물 ${u.post_count ?? 0}
+                ${warnCount[u.id] ? `<br><span class="warning-count-badge">⚠️ 경고 ${warnCount[u.id]}회</span>` : ''}
+            </div>
     `).join('');
     // 경고 횟수 확인
     const { data: warnData } = await window.supabase
