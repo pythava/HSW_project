@@ -226,6 +226,9 @@
         <button id="ctx-warn" class="ctx-btn">
             <span class="material-symbols-rounded">warning</span>경고 발송
         </button>
+        <button id="ctx-banner" class="ctx-btn">
+            <span class="material-symbols-rounded">image</span>배너 지급/회수
+        </button>
         <button id="ctx-ban" class="ctx-btn ctx-danger">
             <span class="material-symbols-rounded">block</span>밴
         </button>
@@ -239,6 +242,25 @@
         <button id="rctx-delete" class="ctx-btn ctx-danger">
             <span class="material-symbols-rounded">delete</span>게시물 강제 삭제
         </button>
+    </div>
+
+    <!-- 배너 지급 모달 -->
+    <div id="banner-grant-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2>🎨 배너 지급 / 회수</h2>
+                <button onclick="closeBannerGrantModal()" class="modal-close-btn"><span class="material-symbols-rounded">close</span></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:0.88rem;color:var(--text-2);margin-bottom:16px;">
+                    대상: <strong id="banner-grant-target-name" style="color:var(--text-0);"></strong>
+                </p>
+                <div id="banner-grant-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBannerGrantModal()" class="btn-ghost">닫기</button>
+            </div>
+        </div>
     </div>
 
     <script src="../js/supabase-config.js"></script>
