@@ -140,10 +140,60 @@ async function submitPam() {
         // 방장을 멤버로 추가
         await supabase.from('pam_members').insert({ pam_id: pam.id, user_id: _me.id });
 
+        // ─── 팸 전용 채팅방 자동 생성 ───
+        // message_rooms에 팸 전용 방 생성 (type: 'pam', pam_id 컬럼으로 연결)
+        const { data: pamRoom } = await supabase.from('message_rooms').insert({
+            name: name,
+            type: 'room',
+            created_by: _me.id,
+            member_count: 1,
+            image_url: imageUrl,
+            pam_id: pam.id   // 팸 ID 연결 (pam_id 컬럼이 없으면 description에 저장)
+        }).select().single();
+
+        let finalPamRoom = pamRoom;
+
+        // pam_id 컬럼이 없는 경우 대비: 그냥 생성 후 pams 테이블에 room_id 저장
+        if (!pamRoom) {
+            const { data: fallbackRoom } = await supabase.from('message_rooms').insert({
+                name: name,
+                type: 'room',
+                created_by: _me.id,
+                member_count: 1,
+                image_url: imageUrl,
+            }).select().single();
+            finalPamRoom = fallbackRoom;
+        }
+
+        if (finalPamRoom) {
+            // pams 테이블에 room_id 저장 (팸-채팅방 연결)
+            await supabase.from('pams').update({ room_id: finalPamRoom.id }).eq('id', pam.id);
+
+            // 방장을 room_members에 추가
+            await supabase.from('room_members').insert({ room_id: finalPamRoom.id, user_id: _me.id });
+
+            // 기본 채널 '팸채팅' 생성
+            const { data: newCh } = await supabase.from('message_channels').insert({
+                room_id: finalPamRoom.id,
+                name: '팸채팅',
+                created_by: _me.id
+            }).select().single();
+
+            // 기본 방 '일반채팅' 생성
+            if (newCh) {
+                await supabase.from('channel_rooms').insert({
+                    channel_id: newCh.id,
+                    name: '일반채팅',
+                    created_by: _me.id
+                });
+            }
+        }
+        // ─── 팸 채팅방 생성 완료 ───
+
         // 토큰 차감
         await supabase.from('user_tokens').update({ amount: _myTokens - 100 }).eq('user_id', _me.id);
 
-        alert('팸이 만들어졌어요! ✦');
+        alert('팸이 만들어졌어요! ✦ 메시지 탭에 팸 채팅방이 생겼어요!');
         location.href = '../pam.html';
     } catch (err) {
         console.error(err);
