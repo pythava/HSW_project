@@ -927,7 +927,5 @@ async function checkMsgBadge(userId) {
     };
 
     await updateMsgBadge();
-    supabase.channel('realtime-msg-badge')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, updateMsgBadge)
-        .subscribe();
+    // 실시간 구독은 badge-logic.js에서 처리
 }
