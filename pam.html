@@ -247,13 +247,18 @@
 
             <!-- 채팅 탭 -->
             <div class="pam-modal-pane" id="pam-pane-chat">
-                <div class="pam-chat-wrap">
-                    <div class="pam-chat-messages" id="pam-chat-messages">
-                        <div class="pam-chat-loader">참여 후 채팅할 수 있어요</div>
+                <div class="pam-chat-wrap pam-chat-redirect">
+                    <div class="pam-chat-redirect-inner">
+                        <span class="material-symbols-rounded" style="font-size:48px;color:var(--primary);margin-bottom:12px;">chat_bubble</span>
+                        <p style="font-size:1rem;font-weight:700;color:var(--text-1);margin-bottom:6px;">팸 채팅은 메시지에서!</p>
+                        <p style="font-size:0.85rem;color:var(--text-3);margin-bottom:18px;">팸 채팅방이 메시지 탭에 자동으로 생성돼요.</p>
+                        <button class="pam-join-btn" id="pam-goto-chat-btn" style="width:auto;padding:10px 24px;">
+                            <span class="material-symbols-rounded">send</span> 채팅하러 가기
+                        </button>
                     </div>
-                    <div class="pam-chat-input-row">
-                        <input type="text" id="pam-chat-input" class="pam-chat-input" placeholder="메시지 입력...">
-                        <button class="pam-chat-send" id="pam-chat-send-btn">
+                    <!-- legacy hidden inputs for compatibility -->
+                    <input type="text" id="pam-chat-input" class="pam-chat-input" placeholder="메시지 입력..." style="display:none;">
+                    <button class="pam-chat-send" id="pam-chat-send-btn" style="display:none;">
                             <span class="material-symbols-rounded">send</span>
                         </button>
                     </div>
@@ -268,7 +273,23 @@
 <script src="./js/auth-handler.js"></script>
 <script src="./js/pam-logic.js"></script>
 <script>
-document.getElementById("pam-chat-send-btn")?.addEventListener("click", sendPamMessage);
+// pam-goto-chat-btn: 클릭 시 현재 팸 채팅방으로 이동
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('pam-goto-chat-btn')?.addEventListener('click', async () => {
+        if (!_currentPamId) return;
+        const pam = _allPams.find(p => p.id === _currentPamId);
+        if (!pam) return;
+        const { data: m } = await supabase.from('pam_members').select('id').eq('pam_id', _currentPamId).eq('user_id', _me.id).maybeSingle();
+        if (m) {
+            document.getElementById('pam-modal').style.display = 'none';
+            goToPamChatRoom(pam);
+        } else {
+            if (confirm('채팅하려면 먼저 팸에 참여해야 해요. 지금 참여할까요?')) {
+                await joinPam();
+            }
+        }
+    });
+});
 </script>
 </body>
 </html>
