@@ -15,6 +15,7 @@ let _serverList = [];
 let _selectedServerImgFile = null;
 let _selectedSettingsImgFile = null;
 let _mutedRooms = new Set();  // 알림 해제된 방 ID
+let _unreadRooms = new Set(); // 미읽음 메시지 있는 방 ID (channel_rooms.id)
 let _channelSettingsTarget = null;
 let _selectedChSettingsImgFile = null;
 
@@ -326,6 +327,13 @@ async function loadChatRoomList(channelId, isOwner) {
             <button class="cr-more-btn" title="방 설정">
                 <span class="material-symbols-rounded">more_horiz</span>
             </button>`;
+        // 미읽음 상태 복원
+        if (_unreadRooms.has(cr.id) && !li.classList.contains('active')) {
+            li.classList.add('has-unread');
+            const dot = document.createElement('span');
+            dot.className = 'room-unread-dot';
+            li.appendChild(dot);
+        }
         li.querySelector('.cr-name').addEventListener('click', () => openChatRoom(cr, channelId));
         li.querySelector('.cr-more-btn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -355,19 +363,14 @@ async function openChatRoom(chatRoom, channelId) {
         const dot = activeEl.querySelector('.room-unread-dot');
         if (dot) dot.remove();
     }
-    // 서버 아이콘 미읽음 제거 (이 서버의 다른 미읽음 없으면)
-    setTimeout(async () => {
-        const badge = document.getElementById('nav-msg-badge');
-        await checkMsgBadge(_me.id);
-        // 현재 서버 아이콘의 글로우도 갱신
-        if (_currentServer) {
-            const serverIcon = document.querySelector(`.server-icon[data-room-id="${_currentServer.id}"]`);
-            if (serverIcon) {
-                const hasOtherUnread = document.querySelector(`.chat-room-item[data-chat-room-id]:not(.active).has-unread`);
-                if (!hasOtherUnread) serverIcon.classList.remove('has-unread');
-            }
+    _unreadRooms.delete(chatRoom.id); // 메모리에서도 제거
+    // 서버 아이콘 미읽음 제거: _unreadRooms가 비었으면 글로우 제거
+    if (_currentServer) {
+        const serverIcon = document.querySelector(`.server-icon[data-room-id="${_currentServer.id}"]`);
+        if (serverIcon && _unreadRooms.size === 0) {
+            serverIcon.classList.remove('has-unread');
         }
-    }, 300);
+    }
 
     document.getElementById('chat-welcome').style.display = 'none';
     const chatRoomEl = document.getElementById('chat-room');
@@ -431,11 +434,13 @@ async function openChatRoom(chatRoom, channelId) {
     subscribeToChatRoom(chatRoom.id);
     loadRoomMembers(_currentServer.id);
 
-    // 읽음 처리 - last_read_at 업데이트 후 뱃지 갱신
+    // 읽음 처리 - last_read_at 업데이트 후 뱃지 즉시 갱신
     await supabase.from('room_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('room_id', _currentServer.id).eq('user_id', _me.id);
+    // badge-logic.js 뱃지도 즉시 갱신 (방에 들어가자마자 숫자 감소)
     checkMsgBadge(_me.id);
+    if (typeof updateMsgBadgeGlobal === 'function') updateMsgBadgeGlobal();
 }
 
 /* ─────────────────────────────────────────
@@ -1029,6 +1034,7 @@ function markServerUnread(roomId) {
 
 // 채팅방 아이템에 미읽음 표시
 function markChatRoomUnread(chatRoomId) {
+    _unreadRooms.add(chatRoomId); // 메모리에 기록 (DOM 재렌더링 후에도 유지)
     const item = document.querySelector(`.chat-room-item[data-chat-room-id="${chatRoomId}"]`);
     if (item && !item.classList.contains('active')) {
         item.classList.add('has-unread');
