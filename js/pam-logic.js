@@ -280,16 +280,27 @@ async function checkNotiBadge(userId) {
 async function checkMsgBadge(userId) {
     const badge = document.getElementById('nav-msg-badge');
     if (!badge) return;
-    const { data: memberships } = await supabase.from('room_members').select('room_id, last_read_at').eq('user_id', userId);
-    if (!memberships || memberships.length === 0) return;
-    let unread = 0;
-    for (const m of memberships) {
-        const since = m.last_read_at || '1970-01-01';
-        const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('room_id', m.room_id).neq('user_id', userId).gt('created_at', since);
-        unread += count || 0;
-    }
-    badge.textContent = unread > 9 ? '9+' : unread;
-    badge.style.display = unread > 0 ? 'flex' : 'none';
+
+    const updateBadge = async () => {
+        const { data: memberships } = await supabase.from('room_members').select('room_id, last_read_at, created_at').eq('user_id', userId);
+        if (!memberships || memberships.length === 0) { badge.style.display = 'none'; return; }
+        let unread = 0;
+        for (const m of memberships) {
+            // last_read_at 없으면 가입 시각 기준 (가입 전 메시지는 미읽음 아님)
+            const since = m.last_read_at || m.created_at || '1970-01-01';
+            const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('room_id', m.room_id).neq('user_id', userId).gt('created_at', since);
+            unread += count || 0;
+        }
+        badge.textContent = unread > 9 ? '9+' : unread;
+        badge.style.display = unread > 0 ? 'flex' : 'none';
+    };
+
+    await updateBadge();
+
+    // 실시간 구독 - 새 메시지 오면 즉시 뱃지 갱신
+    supabase.channel('pam-page-msg-badge')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, updateBadge)
+        .subscribe();
 }
 
 /* ─── 이벤트 ─── */
