@@ -1061,3 +1061,70 @@
     font-size: 0.78rem;
     border-radius: 6px;
 }
+
+/* ─── 미읽음 메시지 글로우 효과 ─── */
+
+/* 서버 아이콘 - 미읽음 있을 때 보라색 글로우 */
+@keyframes server-unread-pulse {
+    0%, 100% {
+        box-shadow: 0 0 8px 2px rgba(139, 92, 246, 0.5), 0 0 20px 4px rgba(139, 92, 246, 0.25);
+    }
+    50% {
+        box-shadow: 0 0 14px 4px rgba(167, 139, 250, 0.7), 0 0 30px 8px rgba(167, 139, 250, 0.35);
+    }
+}
+
+.server-icon.has-unread {
+    animation: server-unread-pulse 2s ease-in-out infinite;
+    border: 1.5px solid rgba(167, 139, 250, 0.6) !important;
+}
+
+.server-icon.has-unread::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    border-radius: 50%;
+    border: 2px solid var(--bg-1);
+    z-index: 2;
+}
+
+/* 채팅방 아이템 - 미읽음 있을 때 보라색 그라데이션 강조 */
+@keyframes chatroom-unread-glow {
+    0%, 100% {
+        background: linear-gradient(90deg, rgba(124, 58, 237, 0.18) 0%, rgba(167, 139, 250, 0.10) 100%);
+        box-shadow: inset 2px 0 0 #7c3aed, 0 0 8px rgba(124, 58, 237, 0.15);
+    }
+    50% {
+        background: linear-gradient(90deg, rgba(139, 92, 246, 0.28) 0%, rgba(196, 181, 253, 0.14) 100%);
+        box-shadow: inset 2px 0 0 #a78bfa, 0 0 14px rgba(167, 139, 250, 0.25);
+    }
+}
+
+.chat-room-item.has-unread {
+    animation: chatroom-unread-glow 2.5s ease-in-out infinite;
+    color: #c4b5fd !important;
+    font-weight: 600;
+    border-radius: 6px;
+}
+
+.chat-room-item.has-unread .cr-name {
+    color: #c4b5fd;
+}
+
+/* 미읽음 점 표시기 */
+.room-unread-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    min-width: 7px;
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    border-radius: 50%;
+    margin-left: auto;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.6);
+}
+
