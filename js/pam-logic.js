@@ -182,15 +182,9 @@ async function openPamModal(pam) {
         joinBtn.innerHTML = '<span class="material-symbols-rounded">star</span> 내가 만든 팸';
         joinBtn.className = 'pam-join-btn joined';
     } else if (membership) {
-        joinBtn.innerHTML = '<span class="material-symbols-rounded">chat</span> 채팅방 가기';
+        joinBtn.innerHTML = '<span class="material-symbols-rounded">chat</span> 메시지에서 채팅하기';
         joinBtn.className = 'pam-join-btn';
-        joinBtn.onclick = () => {
-            document.querySelectorAll('.pam-modal-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.pam-modal-pane').forEach(p => p.classList.remove('active'));
-            document.querySelector('.pam-modal-tab[data-tab="chat"]')?.classList.add('active');
-            document.getElementById('pam-pane-chat')?.classList.add('active');
-            if (_currentPamId) loadPamChat(_currentPamId);
-        };
+        joinBtn.onclick = () => goToPamChatRoom(pam);
     } else {
         joinBtn.innerHTML = '<span class="material-symbols-rounded">door_open</span> 팸 참여하기';
         joinBtn.className = 'pam-join-btn';
@@ -213,25 +207,37 @@ async function joinPam() {
     if (error) { alert('참여 실패: ' + error.message); return; }
     await supabase.from('pams').update({ member_count: (pam.member_count || 1) + 1 }).eq('id', _currentPamId);
 
-    // 채팅탭으로 자동 이동
-    document.querySelectorAll('.pam-modal-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.pam-modal-pane').forEach(p => p.classList.remove('active'));
-    const chatTab = document.querySelector('.pam-modal-tab[data-tab="chat"]');
-    if (chatTab) chatTab.classList.add('active');
-    document.getElementById('pam-pane-chat')?.classList.add('active');
-    await loadPamChat(_currentPamId);
+    // ─── 팸에 연결된 채팅방이 있으면 자동 가입 ───
+    if (pam.room_id) {
+        // 이미 멤버인지 확인
+        const { data: existing } = await supabase.from('room_members')
+            .select('id').eq('room_id', pam.room_id).eq('user_id', _me.id).maybeSingle();
+        if (!existing) {
+            await supabase.from('room_members').insert({ room_id: pam.room_id, user_id: _me.id });
+        }
+    }
+    // ─────────────────────────────────────────────
 
     const joinBtn = document.getElementById('pam-join-btn');
-    joinBtn.innerHTML = '<span class="material-symbols-rounded">chat</span> 채팅방 가기';
+    joinBtn.innerHTML = '<span class="material-symbols-rounded">chat</span> 메시지에서 채팅하기';
     joinBtn.className = 'pam-join-btn';
-    joinBtn.onclick = () => {
-        document.querySelectorAll('.pam-modal-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.pam-modal-pane').forEach(p => p.classList.remove('active'));
-        chatTab?.classList.add('active');
-        document.getElementById('pam-pane-chat')?.classList.add('active');
-        if (_currentPamId) loadPamChat(_currentPamId);
-    };
+    joinBtn.onclick = () => goToPamChatRoom(pam);
+
+    document.getElementById('pam-modal').style.display = 'none';
+    if (pam.room_id) {
+        goToPamChatRoom(pam);
+    }
     await loadPams();
+}
+
+/* ─── 팸 채팅방으로 이동 ─── */
+function goToPamChatRoom(pam) {
+    // 메시지 페이지로 이동 (room_id를 URL 파라미터로 전달)
+    if (pam && pam.room_id) {
+        location.href = `./messages/index.html?open_room=${pam.room_id}`;
+    } else {
+        location.href = './messages/index.html';
+    }
 }
 
 /* ─── 인기 팸 사이드 ─── */
@@ -361,29 +367,26 @@ function bindEvents() {
     // 팸 모달 탭
     document.querySelectorAll('.pam-modal-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
+            // 채팅 탭 클릭 시 메시지 페이지로 바로 이동
+            if (tab.dataset.tab === 'chat' && _currentPamId) {
+                const pam = _allPams.find(p => p.id === _currentPamId);
+                const { data: m } = await supabase.from('pam_members').select('id').eq('pam_id', _currentPamId).eq('user_id', _me.id).maybeSingle();
+                if (m) {
+                    document.getElementById('pam-modal').style.display = 'none';
+                    goToPamChatRoom(pam);
+                } else {
+                    // 참여 안 한 경우 참여 유도
+                    if (confirm('채팅하려면 먼저 팸에 참여해야 해요. 지금 참여할까요?')) {
+                        await joinPam();
+                    }
+                }
+                return;
+            }
             document.querySelectorAll('.pam-modal-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.pam-modal-pane').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById('pam-pane-' + tab.dataset.tab)?.classList.add('active');
-            if (tab.dataset.tab === 'chat' && _currentPamId) {
-                const { data: m } = await supabase.from('pam_members').select('id').eq('pam_id', _currentPamId).eq('user_id', _me.id).maybeSingle();
-                if (m) {
-                    await loadPamChat(_currentPamId);
-                } else {
-                    document.getElementById('pam-chat-messages').innerHTML =
-                        '<div class="pam-chat-loader" style="flex-direction:column;gap:12px;padding:30px;text-align:center">' +
-                        '<span style="font-size:0.9rem;color:var(--text-2)">이 팸에 참여하지 않았어요</span>' +
-                        '<button onclick="joinPam()" style="padding:9px 20px;background:var(--primary);color:white;border-radius:10px;font-weight:700;border:none;cursor:pointer;font-size:0.88rem;">팸 참여하기</button>' +
-                        '</div>';
-                }
-            }
         });
-    });
-
-    // 팸 채팅 전송
-    document.getElementById('pam-chat-send-btn')?.addEventListener('click', sendPamMessage);
-    document.getElementById('pam-chat-input')?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); sendPamMessage(); }
     });
 
     // 로그아웃
