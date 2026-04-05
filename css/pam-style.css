@@ -1008,3 +1008,21 @@
 .pam-chat-send:hover { background: var(--primary-hover); }
 .pam-chat-send .material-symbols-rounded { font-size: 17px; }
 .pam-chat-loader { display: flex; justify-content: center; align-items: center; height: 100%; color: var(--text-3); font-size: 0.82rem; }
+
+/* ─── 팸 채팅 리다이렉트 패널 ─── */
+.pam-chat-wrap.pam-chat-redirect {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-1);
+    border-top: none;
+}
+.pam-chat-redirect-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px 24px;
+    gap: 4px;
+}
