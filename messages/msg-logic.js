@@ -855,7 +855,8 @@ async function createRoom() {
         return;
     }
 
-    const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid }));
+    const now = new Date().toISOString();
+    const memberInserts = memberIds.map(uid => ({ room_id: room.id, user_id: uid, last_read_at: now }));
     await supabase.from('room_members').insert(memberInserts);
 
     // 기본 채널 "일반" 1개 자동 생성
@@ -1274,7 +1275,8 @@ async function startDm(user) {
         .insert({ name: `dm_${_me.id}_${user.id}`, type: 'dm', created_by: _me.id, member_count: 2 })
         .select().single();
     if (error || !newRoom) { console.error(error); return; }
-    await supabase.from('room_members').insert([{ room_id: newRoom.id, user_id: _me.id }, { room_id: newRoom.id, user_id: user.id }]);
+    const _dmNow = new Date().toISOString();
+    await supabase.from('room_members').insert([{ room_id: newRoom.id, user_id: _me.id, last_read_at: _dmNow }, { room_id: newRoom.id, user_id: user.id, last_read_at: _dmNow }]);
     switchToDmView();
     await loadDmList();
     const avatar = user.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`;
@@ -1339,9 +1341,9 @@ async function checkMsgBadge(userId) {
     const badge = document.getElementById('nav-msg-badge');
     if (!badge) return;
     try {
-        // 1. 내가 속한 방 + 마지막 읽은 시각
+        // 1. 내가 속한 방 + 마지막 읽은 시각 + 가입 시각
         const { data: memberships } = await supabase
-            .from('room_members').select('room_id, last_read_at').eq('user_id', userId);
+            .from('room_members').select('room_id, last_read_at, created_at').eq('user_id', userId);
         if (!memberships || memberships.length === 0) { badge.style.display = 'none'; return; }
 
         // 2. 내가 볼 권한이 막힌 channel_rooms id 목록
@@ -1353,7 +1355,8 @@ async function checkMsgBadge(userId) {
         // 3. 각 방별로 last_read_at 이후 볼 수 있는 방의 미읽음 메시지 카운트
         let unread = 0;
         for (const m of memberships) {
-            const since = m.last_read_at || '1970-01-01T00:00:00Z';
+            // last_read_at이 없으면 가입 시각 기준으로 - 가입 전 메시지는 미읽음으로 안 잡힘
+            const since = m.last_read_at || m.created_at || '1970-01-01T00:00:00Z';
 
             // 이 room에 속한 channel_rooms 중 볼 수 있는 것만
             const { data: channels } = await supabase
