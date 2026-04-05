@@ -317,5 +317,10 @@
 
 <script src="../js/supabase-config.js"></script>
 <script src="./msg-logic.js"></script>
+<script>
+// URL 파라미터로 open_room 전달되면 해당 채팅방 자동 열기
+window.__openRoomOnLoad = new URLSearchParams(location.search).get('open_room') || null;
+// msg-logic.js의 loadServerList 완료 후 자동 열기는 msg-logic.js에서 처리
+</script>
 </body>
 </html>
