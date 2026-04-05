@@ -43,8 +43,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadServerList();
     await loadDmList();
 
+    // URL 파라미터 open_room 처리 (팸에서 채팅방으로 이동 시)
+    const openRoomId = window.__openRoomOnLoad || new URLSearchParams(location.search).get('open_room');
+    if (openRoomId) {
+        const targetRoom = _serverList.find(r => r.id === openRoomId);
+        if (targetRoom) {
+            await openServerView(targetRoom);
+            // 첫 번째 채널의 첫 번째 방 자동 열기
+            setTimeout(async () => {
+                const firstCh = document.querySelector('.chat-room-item');
+                if (firstCh) firstCh.querySelector('.cr-name')?.click();
+            }, 500);
+        }
+    }
+
     subscribeToMyInvites();
     subscribeToPermissions();
+    subscribeToNewMessages();  // ← 실시간 메시지 알림 구독 추가
     checkNotiBadge(user.id);
     checkMsgBadge(user.id);
     bindEvents();
@@ -333,7 +348,26 @@ async function openChatRoom(chatRoom, channelId) {
     // 활성 표시
     document.querySelectorAll('.chat-room-item').forEach(el => el.classList.remove('active'));
     const activeEl = document.querySelector(`.chat-room-item[data-chat-room-id="${chatRoom.id}"]`);
-    if (activeEl) activeEl.classList.add('active');
+    if (activeEl) {
+        activeEl.classList.add('active');
+        // 미읽음 표시 제거
+        activeEl.classList.remove('has-unread');
+        const dot = activeEl.querySelector('.room-unread-dot');
+        if (dot) dot.remove();
+    }
+    // 서버 아이콘 미읽음 제거 (이 서버의 다른 미읽음 없으면)
+    setTimeout(async () => {
+        const badge = document.getElementById('nav-msg-badge');
+        await checkMsgBadge(_me.id);
+        // 현재 서버 아이콘의 글로우도 갱신
+        if (_currentServer) {
+            const serverIcon = document.querySelector(`.server-icon[data-room-id="${_currentServer.id}"]`);
+            if (serverIcon) {
+                const hasOtherUnread = document.querySelector(`.chat-room-item[data-chat-room-id]:not(.active).has-unread`);
+                if (!hasOtherUnread) serverIcon.classList.remove('has-unread');
+            }
+        }
+    }, 300);
 
     document.getElementById('chat-welcome').style.display = 'none';
     const chatRoomEl = document.getElementById('chat-room');
@@ -957,6 +991,52 @@ function subscribeToMyInvites() {
             await loadServerList();
             await loadDmList();
         }).subscribe();
+}
+
+
+// 실시간 새 메시지 구독 → 뱃지 + 미읽음 방 글로우 즉시 업데이트
+function subscribeToNewMessages() {
+    supabase.channel(`global-msgs-${_me.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+            const msg = payload.new;
+            if (!msg || msg.user_id === _me.id) return;
+            // 내가 속한 방의 메시지인지 확인
+            const { data: membership } = await supabase
+                .from('room_members').select('room_id').eq('user_id', _me.id).eq('room_id', msg.room_id).maybeSingle();
+            if (!membership) return;
+            // 현재 열려있는 방이면 무시 (이미 읽고 있음)
+            if (_currentChatRoom && _currentChatRoom.id === msg.channel_id) return;
+            // 뮤트된 방이면 무시
+            if (_mutedRooms.has(msg.channel_id)) return;
+            // 뱃지 갱신
+            await checkMsgBadge(_me.id);
+            // 서버 아이콘에 미읽음 글로우 추가
+            if (msg.room_id) markServerUnread(msg.room_id);
+            // 채팅방 아이템에 글로우 추가
+            if (msg.channel_id) markChatRoomUnread(msg.channel_id);
+        }).subscribe();
+}
+
+// 서버 아이콘에 미읽음 표시
+function markServerUnread(roomId) {
+    const icon = document.querySelector(`.server-icon[data-room-id="${roomId}"]`);
+    if (icon && !icon.classList.contains('active')) {
+        icon.classList.add('has-unread');
+    }
+}
+
+// 채팅방 아이템에 미읽음 표시
+function markChatRoomUnread(chatRoomId) {
+    const item = document.querySelector(`.chat-room-item[data-chat-room-id="${chatRoomId}"]`);
+    if (item && !item.classList.contains('active')) {
+        item.classList.add('has-unread');
+        const existBadge = item.querySelector('.room-unread-dot');
+        if (!existBadge) {
+            const dot = document.createElement('span');
+            dot.className = 'room-unread-dot';
+            item.appendChild(dot);
+        }
+    }
 }
 
 // 권한 변경 실시간 감지 — channel_permissions INSERT/UPDATE/DELETE 시 즉시 반영
