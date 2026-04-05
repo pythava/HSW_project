@@ -282,12 +282,13 @@ async function checkMsgBadge(userId) {
     if (!badge) return;
 
     const updateBadge = async () => {
-        const { data: memberships } = await supabase.from('room_members').select('room_id, last_read_at, created_at').eq('user_id', userId);
+        const { data: memberships } = await supabase.from('room_members').select('room_id, last_read_at').eq('user_id', userId);
         if (!memberships || memberships.length === 0) { badge.style.display = 'none'; return; }
         let unread = 0;
         for (const m of memberships) {
-            // last_read_at 없으면 가입 시각 기준 (가입 전 메시지는 미읽음 아님)
-            const since = m.last_read_at || m.created_at || '1970-01-01';
+            const since = m.last_read_at || (() => {
+                const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString();
+            })();
             const { count } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('room_id', m.room_id).neq('user_id', userId).gt('created_at', since);
             unread += count || 0;
         }
