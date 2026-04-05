@@ -16,7 +16,7 @@
         <div class="nav-header"><a href="../index.html" class="logo">UnderGarden</a></div>
         <ul class="nav-links">
             <li><a href="../index.html"><span class="material-symbols-rounded">home</span>홈</a></li>
-            <li><a href="../messages/index.html"><span class="material-symbols-rounded">chat_bubble</span>메시지</a></li>
+            <li><a href="../messages/index.html" style="position:relative;"><span class="material-symbols-rounded">chat_bubble</span>메시지<div id="nav-msg-badge" class="badge" style="display:none">0</div></a></li>
             <li><a href="../search.html"><span class="material-symbols-rounded">search</span>검색</a></li>
             <li><a href="../notifications.html"><span class="material-symbols-rounded">notifications</span>알림</a></li>
             <li><a href="../pam.html"><span class="material-symbols-rounded">groups</span>팸</a></li>
@@ -205,5 +205,6 @@
 <script src="../js/supabase-config.js"></script>
 <script src="../js/common-ui.js"></script>
 <script src="./settings-logic.js"></script>
+<script src="../js/badge-logic.js"></script>
 </body>
 </html>
