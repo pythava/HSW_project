@@ -67,6 +67,10 @@
         }
     }
 
+    // 전역 노출 (다른 스크립트에서 즉시 갱신 가능)
+    window.updateMsgBadgeGlobal = updateMsgBadge;
+    window.updateNotiBadgeGlobal = updateNotiBadge;
+
     // 초기 로드
     await updateNotiBadge();
     await updateMsgBadge();
