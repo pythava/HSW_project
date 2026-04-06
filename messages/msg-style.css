@@ -945,6 +945,7 @@
     font-size: 0.86rem;
     transition: background 0.15s, color 0.15s;
     position: relative;
+    margin-bottom: 4px;
 }
 .chat-room-item:hover { background: var(--bg-2); color: var(--text-1); }
 .chat-room-item.active { background: var(--primary-alpha); color: var(--primary); font-weight: 600; }
@@ -1117,14 +1118,18 @@
 
 /* 미읽음 점 표시기 */
 .room-unread-dot {
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    min-width: 7px;
-    background: linear-gradient(135deg, #a78bfa, #7c3aed);
-    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 9px;
+    padding: 0 5px;
     margin-left: auto;
     flex-shrink: 0;
-    box-shadow: 0 0 6px rgba(167, 139, 250, 0.6);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
 }
-
