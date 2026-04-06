@@ -16,6 +16,7 @@ let _selectedServerImgFile = null;
 let _selectedSettingsImgFile = null;
 let _mutedRooms = new Set();  // 알림 해제된 방 ID
 let _unreadRooms = new Set(); // 미읽음 메시지 있는 방 ID (channel_rooms.id)
+let _unreadCounts = new Map(); // 방별 미읽음 카운트 (channel_rooms.id → count)
 let _channelSettingsTarget = null;
 let _selectedChSettingsImgFile = null;
 
@@ -332,6 +333,8 @@ async function loadChatRoomList(channelId, isOwner) {
             li.classList.add('has-unread');
             const dot = document.createElement('span');
             dot.className = 'room-unread-dot';
+            const cnt = _unreadCounts.get(cr.id) || 0;
+            dot.textContent = cnt > 99 ? '99+' : (cnt > 0 ? cnt : '');
             li.appendChild(dot);
         }
         li.querySelector('.cr-name').addEventListener('click', () => openChatRoom(cr, channelId));
@@ -364,6 +367,7 @@ async function openChatRoom(chatRoom, channelId) {
         if (dot) dot.remove();
     }
     _unreadRooms.delete(chatRoom.id); // 메모리에서도 제거
+    _unreadCounts.delete(chatRoom.id);
     // 서버 아이콘 미읽음 제거: _unreadRooms가 비었으면 글로우 제거
     if (_currentServer) {
         const serverIcon = document.querySelector(`.server-icon[data-room-id="${_currentServer.id}"]`);
@@ -1035,15 +1039,18 @@ function markServerUnread(roomId) {
 // 채팅방 아이템에 미읽음 표시
 function markChatRoomUnread(chatRoomId) {
     _unreadRooms.add(chatRoomId); // 메모리에 기록 (DOM 재렌더링 후에도 유지)
+    _unreadCounts.set(chatRoomId, (_unreadCounts.get(chatRoomId) || 0) + 1);
     const item = document.querySelector(`.chat-room-item[data-chat-room-id="${chatRoomId}"]`);
     if (item && !item.classList.contains('active')) {
         item.classList.add('has-unread');
-        const existBadge = item.querySelector('.room-unread-dot');
+        let existBadge = item.querySelector('.room-unread-dot');
         if (!existBadge) {
-            const dot = document.createElement('span');
-            dot.className = 'room-unread-dot';
-            item.appendChild(dot);
+            existBadge = document.createElement('span');
+            existBadge.className = 'room-unread-dot';
+            item.appendChild(existBadge);
         }
+        const cnt = _unreadCounts.get(chatRoomId) || 0;
+        existBadge.textContent = cnt > 99 ? '99+' : cnt;
     }
 }
 
